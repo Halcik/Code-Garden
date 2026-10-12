@@ -1,0 +1,34 @@
+.theme-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.theme-switch select {
+  font: inherit;
+  color: var(--color-accent);
+  background: var(--color-brand-surface);
+  border: 0;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.theme-switch select:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+@media (max-width: 1000px) {
+  .theme-switch {
+    position: static;
+    justify-content: flex-end;
+    margin-bottom: 16px;
+  }
+}
