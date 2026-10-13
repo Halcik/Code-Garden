@@ -51,6 +51,7 @@ async function authRequest(path: string, options: RequestInit = {}): Promise<Res
   if (response.ok || (path === "/me" && response.status === 401)) return response;
   if (response.status === 401) throw new AuthApiError("Nieprawidłowy login lub hasło.");
   if (response.status === 409) throw new AuthApiError("Ten login lub adres e-mail jest już zajęty.");
+  if (response.status === 429) throw new AuthApiError("Zbyt wiele prób. Odczekaj minutę i spróbuj ponownie.");
   if (response.status === 422) throw validationError(await response.json().catch(() => null));
   if (response.status === 403) throw new AuthApiError("Żądanie zostało odrzucone. Odśwież stronę i spróbuj ponownie.");
   throw new AuthApiError("Nie udało się wykonać operacji. Spróbuj ponownie później.");

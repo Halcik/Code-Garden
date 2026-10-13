@@ -1,5 +1,11 @@
 # Frontend — integracja autoryzacji
 
+Sesja zalogowanego użytkownika jest dodatkowo sprawdzana po powrocie do karty
+lub okna oraz co minutę, gdy karta jest widoczna. HTTP 401 czyści użytkownika
+i przywraca formularz logowania. Błąd połączenia zachowuje stan użytkownika
+i pokazuje komunikat. HTTP 429 przy logowaniu lub rejestracji pokazuje prośbę
+o odczekanie minuty przed kolejną próbą.
+
 ## Uruchomienie
 
 Backend: wykonaj instrukcje z `../backend/README.md`, zastosuj migracje i uruchom

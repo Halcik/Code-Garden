@@ -1,5 +1,13 @@
 # Code Garden — backend autoryzacji
 
+Endpointy `/auth/login` i `/auth/register` mają wspólny limit 30 requestów na minutę
+na IP. Logowanie ma dodatkowo limit 10 prób na minutę na znormalizowany login.
+Przekroczenie zwraca HTTP 429 i nagłówek `Retry-After`, przed operacją Argon2.
+Liczniki są w pamięci jednego procesu i resetują się po restarcie. Przy wielu
+workerach lub instancjach należy zastąpić je wspólnym magazynem liczników.
+Adres klienta pochodzi z połączenia ASGI; za proxy skonfiguruj zaufane adresy
+proxy w Uvicorn, aby limit obejmował rzeczywiste IP klientów.
+
 FastAPI + PostgreSQL. Frontend pozostaje bez zmian. Python 3.9+ (implementację sprawdzono na 3.9.6).
 
 ## Instalacja i uruchomienie
@@ -150,7 +158,7 @@ jednorazowej bazy z nazwą kończącą się `_test`; testy czyszczą jej tabelę
 ```bash
 docker compose exec -T db createdb -U code_garden code_garden_test
 # Wstaw lokalne hasło zgodne z .env, nie prawdziwy sekret produkcyjny:
-TEST_DATABASE_URL='postgresql+psycopg://code_garden:YOUR_LOCAL_PASSWORD@localhost:5432/code_garden_test' pytest -q
+TEST_DATABASE_URL='postgresql+psycopg://code_garden:YOUR_LOCAL_PASSWORD@127.0.0.1:5432/code_garden_test' pytest -q
 alembic check
 ```
 

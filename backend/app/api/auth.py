@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import check_origin, get_current_user
 from app.core.config import get_settings
+from app.core.rate_limit import check_auth_ip, check_login_attempt
 from app.core.security import create_access_token
 from app.db.session import get_db
 from app.models.user import User
@@ -13,13 +14,15 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED,
-             dependencies=[Depends(check_origin)])
+             dependencies=[Depends(check_origin), Depends(check_auth_ip)])
 def register(data: RegisterRequest, db: Session = Depends(get_db)):
     return register_user(db, data)
 
 
-@router.post("/login", response_model=UserResponse, dependencies=[Depends(check_origin)])
+@router.post("/login", response_model=UserResponse,
+             dependencies=[Depends(check_origin), Depends(check_auth_ip)])
 def login(data: LoginRequest, response: Response, db: Session = Depends(get_db)):
+    check_login_attempt(data.login)
     user = authenticate_user(db, data.login, data.password)
     settings = get_settings()
     response.set_cookie(key=settings.cookie_name, value=create_access_token(user.id),

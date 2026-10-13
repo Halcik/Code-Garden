@@ -36,6 +36,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => controller.abort();
   }, [sessionAttempt]);
 
+  useEffect(() => {
+    if (!user) return;
+    const controller = new AbortController();
+    let pending = false;
+    async function refreshSession() {
+      if (document.visibilityState !== "visible" || pending) return;
+      pending = true;
+      try {
+        const currentUser = await authApi.getCurrentUser(controller.signal);
+        if (!controller.signal.aborted) {
+          setUser(currentUser);
+          setSessionError("");
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) setSessionError(authApi.authErrorMessage(error));
+      } finally {
+        pending = false;
+      }
+    }
+    window.addEventListener("focus", refreshSession);
+    document.addEventListener("visibilitychange", refreshSession);
+    const interval = window.setInterval(refreshSession, 60_000);
+    return () => {
+      controller.abort();
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshSession);
+      document.removeEventListener("visibilitychange", refreshSession);
+    };
+  }, [user]);
+
   async function signIn(data: LoginRequest) {
     await authApi.login(data);
     const currentUser = await authApi.getCurrentUser();

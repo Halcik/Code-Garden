@@ -1,6 +1,7 @@
 """Run only against an explicitly configured, disposable *_test PostgreSQL DB."""
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -22,7 +23,7 @@ def client():
     if not make_url(url).database.endswith("_test"):
         pytest.fail("TEST_DATABASE_URL database must end in _test")
     env = {**os.environ, "DATABASE_URL": url}
-    subprocess.run([str(Path(__file__).resolve().parents[1] / ".venv/bin/alembic"), "upgrade", "head"],
+    subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"],
                    cwd=Path(__file__).resolve().parents[1], env=env, check=True)
     engine = create_engine(url)
     with engine.begin() as connection:
