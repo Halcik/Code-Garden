@@ -1,6 +1,6 @@
 # Code Garden
 
-Projekt jest na etapie implementacji frontendu. Zawiera ekran logowania i rejestracji oparty o projekt z Figmy.
+Projekt jest na etapie implementacji logowania i rejestracji użytkowników.
 
 ## Stack
 
@@ -35,49 +35,10 @@ Node.js powinien pokazać wersję `v24.x.x`, a npm swój numer wersji.
 W terminalu, z głównego katalogu repozytorium:
 
 ```sh
-cd frontend
-npm install
+npm run setup
 npm run dev
 ```
 
 `npm install` instaluje wszystkie zależności zapisane w `package.json`, w tym React, TypeScript i Vite. Nie trzeba instalować ich globalnie. Wykonaj tę komendę przy pierwszym uruchomieniu oraz po zmianach zależności.
 
 Otwórz w przeglądarce adres wyświetlony przez Vite, zwykle `http://localhost:5173`. Zatrzymaj serwer skrótem `Ctrl+C` w terminalu.
-
-Jeśli PowerShell blokuje uruchomienie pliku `npm.ps1`, użyj `npm.cmd` zamiast `npm`, np. `npm.cmd install` i `npm.cmd run dev`.
-
-## Build i podgląd
-
-W katalogu `frontend/`:
-
-```sh
-npm run build
-npm run preview
-```
-
-`build` sprawdza typy TypeScript i zapisuje pliki produkcyjne w `frontend/dist/`. `preview` uruchamia lokalny podgląd gotowego buildu.
-
-## Pliki w Git
-
-Commituj kod, konfigurację oraz `frontend/package-lock.json`, który zapisuje konkretne wersje zależności. Katalogi `node_modules/` i `dist/` są ignorowane przez `.gitignore`.
-
-## Formularze demonstracyjne
-
-Przełączanie trybów, kontrolowane pola i walidacja działają po stronie React.
-Uczeń podaje login i hasło, a e-mail opcjonalnie. Nauczyciel musi podać także e-mail.
-Rejestracja wymaga loginu o długości co najmniej 3 znaków, hasła o długości co najmniej 8 znaków i zgodnego potwierdzenia hasła.
-
-Poprawny submit wypisuje dane formularza (w tym hasło) do `console.log` zgodnie z wymaganiami demonstracji. Nie tworzy konta ani sesji i nie zapisuje danych w localStorage. Logowanie danych należy usunąć przy integracji backendu.
-
-Do podłączenia pozostają endpointy logowania i rejestracji, obsługa sesji, błędów API, odzyskiwanie hasła oraz akceptacja kont nauczycieli przez administratora. Backend musi także samodzielnie walidować dane.
-
-Układ logowania pochodzi z [Figmy](https://www.figma.com/design/4j6FZMglRVoJs84tmeElGO/Code-Garden?node-id=291-549). Formularz rejestracji rozwija ten sam styl, ponieważ wskazana ramka pokazuje tylko tryb logowania.
-Logo i font Inter są przechowywane lokalnie w `frontend/src/assets/`; licencja fontu znajduje się w `frontend/src/assets/Inter-LICENSE.txt`.
-
-## Motywy
-
-Ekran obsługuje motyw jasny, ciemny oraz systemowy (domyślny). Wybór w polu „Motyw” działa bez przeładowania strony i nie czyści formularza. W trybie systemowym aplikacja reaguje również na zmianę preferencji systemu. Preferencja jest zapisywana w `localStorage` pod kluczem `code-garden-theme` i odtwarzana po odświeżeniu lub ponownym otwarciu strony w tej samej przeglądarce i pod tym samym adresem. Zapisywany jest wyłącznie motyw, bez danych formularzy. Jeśli zapis jest zablokowany, wybór działa w pamięci React; nieprawidłowa zapisana wartość powoduje powrót do motywu systemowego.
-
-Kolory obu motywów znajdują się w `frontend/src/styles/theme.css`. Nowe ekrany powinny korzystać ze zmiennych `--color-*` zamiast wpisywać kolory bezpośrednio. `ThemeProvider` w `frontend/src/App.tsx` obejmuje aplikację i ustawia `data-theme` na elemencie `html`. Hook `useTheme()` udostępnia aktualny motyw, preferencję i `setPreference()`, a komponent `ThemeSwitch` można umieścić na kolejnych ekranach.
-
-Ciemna paleta pochodzi z [ciemnej ramki w Figmie](https://www.figma.com/design/4j6FZMglRVoJs84tmeElGO/Code-Garden?node-id=293-485). Logo w obu projektach jest identyczne i korzysta z tego samego lokalnego pliku.
