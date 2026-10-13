@@ -18,6 +18,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [sessionError, setSessionError] = useState("");
   const [sessionAttempt, setSessionAttempt] = useState(0);
+  const userId = user?.id;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -37,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [sessionAttempt]);
 
   useEffect(() => {
-    if (!user) return;
+    if (userId === undefined) return;
     const controller = new AbortController();
     let pending = false;
     async function refreshSession() {
@@ -64,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("focus", refreshSession);
       document.removeEventListener("visibilitychange", refreshSession);
     };
-  }, [user]);
+  }, [userId]);
 
   async function signIn(data: LoginRequest) {
     await authApi.login(data);

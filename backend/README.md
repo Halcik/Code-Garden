@@ -1,5 +1,11 @@
 # Code Garden — backend autoryzacji
 
+GitHub Actions uruchamia check `Backend tests` dla pull requestów i pushów do
+`main`: instaluje zależności z lockfile, uruchamia PostgreSQL 17, stosuje migracje,
+wykonuje testy (w tym integracyjne) i `alembic check`. Baza jest jednorazowa.
+Aby check blokował merge, dodaj `Backend tests` do wymaganych statusów w regułach
+ochrony gałęzi GitHub; sam plik workflow nie ustawia ochrony gałęzi.
+
 Endpointy `/auth/login` i `/auth/register` mają wspólny limit 30 requestów na minutę
 na IP. Logowanie ma dodatkowo limit 10 prób na minutę na znormalizowany login.
 Przekroczenie zwraca HTTP 429 i nagłówek `Retry-After`, przed operacją Argon2.
