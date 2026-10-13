@@ -10,6 +10,7 @@ type Props = {
   type?: HTMLInputTypeAttribute;
   error?: string;
   required?: boolean;
+  disabled?: boolean;
 };
 
 export default function FormField({
@@ -22,6 +23,7 @@ export default function FormField({
   type = "text",
   error,
   required = true,
+  disabled = false,
 }: Props) {
   return (
     <div className="form-field">
@@ -35,6 +37,7 @@ export default function FormField({
         placeholder={placeholder}
         autoComplete={autoComplete}
         required={required}
+        disabled={disabled}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? `${id}-error` : undefined}
       />

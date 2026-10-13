@@ -3,7 +3,10 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
-.env
+.env*
+!.env.example
+.pytest_cache/
+*.egg-info/
 
 # Node / React
 node_modules/

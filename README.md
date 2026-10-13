@@ -1,6 +1,6 @@
 # Code Garden
 
-Projekt jest na etapie implementacji logowania i rejestracji użytkowników.
+Projekt ma zintegrowane logowanie i rejestrację użytkowników. JWT jest przechowywany w HttpOnly cookie.
 
 ## Stack
 
@@ -13,7 +13,7 @@ Projekt jest na etapie implementacji logowania i rejestracji użytkowników.
 ## Struktura repozytorium
 
 - `frontend/` — aplikacja React + TypeScript + Vite.
-- `backend/` — TBD
+- `backend/` — FastAPI, PostgreSQL, SQLAlchemy, Alembic i autoryzacja JWT.
 
 
 ## Instalacja narzędzi
@@ -42,3 +42,7 @@ npm run dev
 `npm install` instaluje wszystkie zależności zapisane w `package.json`, w tym React, TypeScript i Vite. Nie trzeba instalować ich globalnie. Wykonaj tę komendę przy pierwszym uruchomieniu oraz po zmianach zależności.
 
 Otwórz w przeglądarce adres wyświetlony przez Vite, zwykle `http://localhost:5173`. Zatrzymaj serwer skrótem `Ctrl+C` w terminalu.
+
+Do działania autoryzacji uruchom także backend pod `http://localhost:8000`.
+Instrukcje konfiguracji i migracji znajdują się w [backend/README.md](backend/README.md).
+Konfiguracja API frontendu, opis flow i ręczny test end-to-end są w [frontend/README.md](frontend/README.md).
