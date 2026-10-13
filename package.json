@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "setup": "npm --prefix frontend install"
+  }
+}
