@@ -19,10 +19,6 @@ export default function LoginForm({ onRegister }: { onRegister: () => void }) {
     setErrors(nextErrors);
     setMessage("");
     if (Object.values(nextErrors).some(Boolean)) return;
-    console.log("Code Garden — logowanie (demo)", {
-      login: login.trim(),
-      password,
-    });
     setMessage("Formularz poprawny. Logowanie nie jest jeszcze podłączone.");
   }
 

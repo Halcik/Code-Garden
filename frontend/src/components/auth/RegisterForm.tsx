@@ -33,13 +33,6 @@ export default function RegisterForm({ onLogin }: { onLogin: () => void }) {
     setErrors(nextErrors);
     setMessage("");
     if (Object.keys(nextErrors).length) return;
-    console.log("Code Garden — rejestracja (demo)", {
-      role,
-      login: login.trim(),
-      email: email.trim(),
-      password,
-      confirmPassword,
-    });
     setMessage(
       "Formularz poprawny. Konto nie zostało utworzone — rejestracja nie jest jeszcze podłączona.",
     );
@@ -65,7 +58,7 @@ export default function RegisterForm({ onLogin }: { onLogin: () => void }) {
               checked={role === "student"}
               onChange={() => {
                 setRole("student");
-                setErrors({});
+                setErrors((previous) => ({ ...previous, email: undefined }));
               }}
             />
             <strong>Uczeń</strong>
@@ -81,7 +74,7 @@ export default function RegisterForm({ onLogin }: { onLogin: () => void }) {
               checked={role === "teacher"}
               onChange={() => {
                 setRole("teacher");
-                setErrors({});
+                setErrors((previous) => ({ ...previous, email: undefined }));
               }}
             />
             <strong>Nauczyciel</strong>
