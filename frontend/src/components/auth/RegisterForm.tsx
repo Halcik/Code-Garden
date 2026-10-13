@@ -1,13 +1,18 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import FormField from "./FormField";
+import { AuthApiError, authErrorMessage, register } from "../../api/auth";
 
 type Role = "student" | "teacher";
 type Errors = Partial<
   Record<"login" | "email" | "password" | "confirmPassword", string>
 >;
 
-export default function RegisterForm({ onLogin }: { onLogin: () => void }) {
+export default function RegisterForm({ onLogin, onRegistered, onBusyChange }: {
+  onLogin: () => void;
+  onRegistered: () => void;
+  onBusyChange: (busy: boolean) => void;
+}) {
   const [role, setRole] = useState<Role>("student");
   const [login, setLogin] = useState("");
   const [email, setEmail] = useState("");
@@ -15,27 +20,40 @@ export default function RegisterForm({ onLogin }: { onLogin: () => void }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitting) return;
     const nextErrors: Errors = {};
-    if (login.trim().length < 3)
-      nextErrors.login = "Login musi mieć co najmniej 3 znaki.";
+    if (!/^[a-zA-Z0-9_.-]{3,50}$/.test(login.trim()))
+      nextErrors.login = "Login musi mieć 3–50 znaków: litery, cyfry, _, . lub -.";
     if (role === "teacher" && !email.trim())
       nextErrors.email = "Podaj e-mail nauczyciela.";
     else if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
       nextErrors.email = "Podaj poprawny adres e-mail.";
-    if (password.length < 8)
-      nextErrors.password = "Hasło musi mieć co najmniej 8 znaków.";
+    if (password.length < 8 || password.length > 128)
+      nextErrors.password = "Hasło musi mieć od 8 do 128 znaków.";
     if (!confirmPassword) nextErrors.confirmPassword = "Powtórz hasło.";
     else if (password !== confirmPassword)
       nextErrors.confirmPassword = "Hasła muszą być takie same.";
     setErrors(nextErrors);
     setMessage("");
     if (Object.keys(nextErrors).length) return;
-    setMessage(
-      "Formularz poprawny. Konto nie zostało utworzone — rejestracja nie jest jeszcze podłączona.",
-    );
+    setSubmitting(true);
+    onBusyChange(true);
+    try {
+      await register({ login: login.trim(), password,
+        role: role === "teacher" ? "TEACHER" : "STUDENT",
+        email: email.trim() || null });
+      onRegistered();
+    } catch (error) {
+      setMessage(authErrorMessage(error));
+      if (error instanceof AuthApiError) setErrors(error.fieldErrors);
+    } finally {
+      setSubmitting(false);
+      onBusyChange(false);
+    }
   }
 
   return (
@@ -44,8 +62,9 @@ export default function RegisterForm({ onLogin }: { onLogin: () => void }) {
       onSubmit={submit}
       noValidate
       onChange={() => setMessage("")}
+      aria-busy={submitting}
     >
-      <fieldset className="role-choice">
+      <fieldset className="role-choice" disabled={submitting}>
         <legend>Wybierz rolę</legend>
         <div className="role-grid">
           <label
@@ -78,7 +97,7 @@ export default function RegisterForm({ onLogin }: { onLogin: () => void }) {
               }}
             />
             <strong>Nauczyciel</strong>
-            <span>Wymagany e-mail i akceptacja administratora</span>
+            <span>E-mail wymagany</span>
           </label>
         </div>
       </fieldset>
@@ -91,6 +110,7 @@ export default function RegisterForm({ onLogin }: { onLogin: () => void }) {
           placeholder="Wpisz login (minimum 3 znaki)"
           autoComplete="username"
           error={errors.login}
+          disabled={submitting}
         />
         <FormField
           id="email"
@@ -102,6 +122,7 @@ export default function RegisterForm({ onLogin }: { onLogin: () => void }) {
           autoComplete="email"
           required={role === "teacher"}
           error={errors.email}
+          disabled={submitting}
         />
         <FormField
           id="register-password"
@@ -112,6 +133,7 @@ export default function RegisterForm({ onLogin }: { onLogin: () => void }) {
           placeholder="Wpisz hasło (minimum 8 znaków)"
           autoComplete="new-password"
           error={errors.password}
+          disabled={submitting}
         />
         <FormField
           id="confirm-password"
@@ -122,17 +144,18 @@ export default function RegisterForm({ onLogin }: { onLogin: () => void }) {
           placeholder="Wpisz hasło ponownie"
           autoComplete="new-password"
           error={errors.confirmPassword}
+          disabled={submitting}
         />
       </div>
-      <button className="submit-button" type="submit">
-        Utwórz konto
+      <button className="submit-button" type="submit" disabled={submitting}>
+        {submitting ? "Tworzenie konta…" : "Utwórz konto"}
       </button>
-      <p className="form-status" role="status">
+      <p className="form-status form-status-error" role="alert">
         {message}
       </p>
       <p className="auth-alternative">
         Masz już konto?{" "}
-        <button className="text-button" type="button" onClick={onLogin}>
+        <button className="text-button" type="button" onClick={onLogin} disabled={submitting}>
           Zaloguj się
         </button>
       </p>

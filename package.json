@@ -1,7 +1,9 @@
 {
   "private": true,
   "scripts": {
-    "dev": "npm --prefix frontend run dev",
+    "dev": "node scripts/start-dev.cjs",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "node scripts/start-backend.cjs",
     "setup": "npm --prefix frontend install"
   }
 }
