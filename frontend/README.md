@@ -51,7 +51,7 @@ CORS backendu musi dopuszczać origin frontendu z credentials.
 
 1. Start/odświeżenie: `GET /auth/me` z cookie. HTTP 401 oznacza brak sesji i pokazuje
    formularze. HTTP 200 zapisuje publiczne dane użytkownika w stanie React i pokazuje
-   login oraz wylogowanie. Błąd połączenia pokazuje komunikat i przycisk ponowienia.
+   panel zgodny z rol? oraz wylogowanie. Błąd połączenia pokazuje komunikat i przycisk ponowienia.
 2. Rejestracja: `POST /auth/register` wysyła `login`, `password`, rolę `STUDENT` lub
    `TEACHER` oraz email (dla ucznia pusty email jest `null`). Nauczyciel wymaga emaila.
    Sukces przełącza formularz na logowanie i pokazuje potwierdzenie. Nie tworzy sesji.
@@ -79,7 +79,7 @@ UI nie wyświetla surowych wyjątków ani wartości haseł z odpowiedzi walidacy
 4. Wybierz nauczyciela. Brak emaila powinien blokować wysłanie; poprawny email pozwala
    utworzyć konto. Nie ma zatwierdzania przez administratora.
 5. Zaloguj się błędnym hasłem, a następnie poprawnym. Po sukcesie Network pokazuje
-   `/auth/login` i `/auth/me`, a ekran pokazuje login oraz przycisk wylogowania.
+   `/auth/login` i `/auth/me`, a ekran pokazuje panel zgodny z rol? oraz przycisk wylogowania.
 6. W DevTools → Application → Cookies sprawdź `access_token`: HttpOnly i SameSite=Lax.
    Lokalnie Secure jest wyłączone. Token nie występuje w odpowiedziach JSON ani storage.
 7. Odśwież stronę. `/auth/me` przywraca stan użytkownika na podstawie cookie.
@@ -96,3 +96,8 @@ Walidacja kompilacji:
 ```bash
 npm run build
 ```
+
+## KAN-22: routing i role
+
+Szczeg??y ochrony tras, konfiguracja hostingu SPA i scenariusze test?w dla wszystkich
+r?l oraz braku sesji: [docs/KAN-22.md](../docs/KAN-22.md).
