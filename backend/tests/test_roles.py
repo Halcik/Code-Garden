@@ -9,13 +9,14 @@ from app.api.dependencies import get_current_user, require_role
 from app.core.config import get_settings
 from app.core.security import create_access_token
 from app.db.session import get_db
-from app.models.user import UserRole
+from app.models.user import AccountStatus, TeacherApproval, UserRole
 
 
 @pytest.fixture
 def client():
     app = FastAPI()
-    users = {index: SimpleNamespace(id=index, role=role)
+    users = {index: SimpleNamespace(id=index, role=role, status=AccountStatus.ACTIVE,
+                                   teacher_approval=TeacherApproval.APPROVED if role == UserRole.TEACHER else None)
              for index, role in enumerate(UserRole, start=1)}
 
     class FakeSession:
@@ -61,7 +62,8 @@ def test_explicit_multiple_roles(client, user_id, expected):
 
 
 def test_guard_uses_current_user_role(client):
-    user = SimpleNamespace(role=UserRole.STUDENT)
+    user = SimpleNamespace(role=UserRole.STUDENT, status=AccountStatus.ACTIVE,
+                           teacher_approval=TeacherApproval.APPROVED)
     client.app.dependency_overrides[get_current_user] = lambda: user
     assert client.get("/student").status_code == 200
     user.role = UserRole.TEACHER
@@ -73,3 +75,22 @@ def test_guard_uses_current_user_role(client):
 def test_guard_rejects_invalid_configuration(roles):
     with pytest.raises(ValueError):
         require_role(*roles)
+
+
+@pytest.mark.parametrize("role", list(UserRole))
+def test_inactive_user_blocked_with_existing_session(client, role):
+    user = SimpleNamespace(role=role, status=AccountStatus.ACTIVE,
+                           teacher_approval=TeacherApproval.APPROVED)
+    client.app.dependency_overrides[get_current_user] = lambda: user
+    assert client.get(f"/{role.value.lower()}").status_code == 200
+    user.status = AccountStatus.INACTIVE
+    assert client.get(f"/{role.value.lower()}").status_code == 403
+
+
+@pytest.mark.parametrize("approval", list(TeacherApproval))
+@pytest.mark.parametrize("status", list(AccountStatus))
+def test_teacher_access_requires_both_status_and_approval(client, approval, status):
+    client.app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(
+        role=UserRole.TEACHER, status=status, teacher_approval=approval)
+    expected = 200 if status == AccountStatus.ACTIVE and approval == TeacherApproval.APPROVED else 403
+    assert client.get("/teacher").status_code == expected

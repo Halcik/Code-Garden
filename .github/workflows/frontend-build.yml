@@ -30,3 +30,6 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+
+      - name: Test routing and user administration
+        run: npm test

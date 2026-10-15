@@ -65,8 +65,10 @@ export default function AuthPage() {
               onBusyChange={setFormBusy} successMessage={successMessage} />
           ) : (
             <RegisterForm onLogin={() => switchMode("login")} onBusyChange={setFormBusy}
-              onRegistered={() => {
-                setSuccessMessage("Konto zostało utworzone. Możesz się teraz zalogować.");
+              onRegistered={(user) => {
+                setSuccessMessage(user.role === "TEACHER"
+                  ? "Konto zostało utworzone i oczekuje na akceptację administratora. Zaloguj się, aby sprawdzić status."
+                  : "Konto zostało utworzone. Możesz się teraz zalogować.");
                 setMode("login");
               }} />
           )}

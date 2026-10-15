@@ -15,6 +15,9 @@
   --color-button-hover: #136d49;
   --color-button-text: #ffffff;
   --color-error: #b42318;
+  --color-error-surface: #fdeeee;
+  --color-warning: #a15c12;
+  --color-warning-surface: #fff5e5;
 }
 
 :root[data-theme="dark"] {
@@ -34,4 +37,7 @@
   --color-button-hover: #12835c;
   --color-button-text: #f8fafc;
   --color-error: #fda29b;
+  --color-error-surface: #42202a;
+  --color-warning: #f8c56b;
+  --color-warning-surface: #3c2a0d;
 }

@@ -1,41 +1,5 @@
 """Run only against an explicitly configured, disposable *_test PostgreSQL DB."""
-import os
-import subprocess
-import sys
-from pathlib import Path
-
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import make_url
-
 from app.core.config import get_settings
-from app.db.session import get_db
-from app.main import app
-from sqlalchemy.orm import Session
-
-
-@pytest.fixture(scope="module")
-def client():
-    url = os.environ.get("TEST_DATABASE_URL")
-    if not url:
-        pytest.skip("Set TEST_DATABASE_URL to a disposable PostgreSQL database ending in _test")
-    if not make_url(url).database.endswith("_test"):
-        pytest.fail("TEST_DATABASE_URL database must end in _test")
-    env = {**os.environ, "DATABASE_URL": url}
-    subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"],
-                   cwd=Path(__file__).resolve().parents[1], env=env, check=True)
-    engine = create_engine(url)
-    with engine.begin() as connection:
-        connection.execute(text("TRUNCATE users RESTART IDENTITY"))
-    def override_db():
-        with Session(engine) as session:
-            yield session
-    app.dependency_overrides[get_db] = override_db
-    with TestClient(app) as test_client:
-        yield test_client
-    app.dependency_overrides.clear()
-    engine.dispose()
 
 
 def test_auth_flow(client):

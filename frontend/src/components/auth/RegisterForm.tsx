@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import FormField from "./FormField";
 import { AuthApiError, authErrorMessage, register } from "../../api/auth";
+import type { User } from "../../api/auth";
 
 type Role = "student" | "teacher";
 type Errors = Partial<
@@ -10,7 +11,7 @@ type Errors = Partial<
 
 export default function RegisterForm({ onLogin, onRegistered, onBusyChange }: {
   onLogin: () => void;
-  onRegistered: () => void;
+  onRegistered: (user: User) => void;
   onBusyChange: (busy: boolean) => void;
 }) {
   const [role, setRole] = useState<Role>("student");
@@ -43,10 +44,10 @@ export default function RegisterForm({ onLogin, onRegistered, onBusyChange }: {
     setSubmitting(true);
     onBusyChange(true);
     try {
-      await register({ login: login.trim(), password,
+      const user = await register({ login: login.trim(), password,
         role: role === "teacher" ? "TEACHER" : "STUDENT",
         email: email.trim() || null });
-      onRegistered();
+      onRegistered(user);
     } catch (error) {
       setMessage(authErrorMessage(error));
       if (error instanceof AuthApiError) setErrors(error.fieldErrors);
@@ -97,7 +98,7 @@ export default function RegisterForm({ onLogin, onRegistered, onBusyChange }: {
               }}
             />
             <strong>Nauczyciel</strong>
-            <span>E-mail wymagany</span>
+            <span>E-mail i akceptacja administratora wymagane</span>
           </label>
         </div>
       </fieldset>

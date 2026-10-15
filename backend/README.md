@@ -1,5 +1,20 @@
 # Code Garden — backend autoryzacji
 
+## Zarządzanie użytkownikami (KAN-23)
+
+Router `/admin/users` udostępnia listę z filtrami i paginacją, szczegóły, PATCH
+loginu/emaila oraz akcje aktywacji, dezaktywacji i akceptacji/odrzucenia nauczyciela.
+Wymaga aktywnego ADMIN. `require_role` sprawdza również `status` konta i akceptację
+nauczyciela. `/auth/me` pozostaje dostępne jako metadane sesji konta ograniczonego.
+
+Migracja `0002` ustawia istniejące konta jako ACTIVE, a istniejących nauczycieli
+jako PENDING — wymagają decyzji administratora. Samo activate nie zatwierdza
+nauczyciela, a approve-teacher nie aktywuje nieaktywnego konta.
+
+Pełny kontrakt, model statusów i scenariusze: [KAN-23](../docs/KAN-23.md).
+Testy PostgreSQL (auth i admin) wymagają jednorazowej bazy `*_test` wskazanej przez
+`TEST_DATABASE_URL`; fixture czyszczą tabelę users wyłącznie w tej bazie.
+
 ## Kontrola ról (KAN-22)
 
 `app/api/dependencies.py` udostępnia `require_role(*roles: UserRole)`.
