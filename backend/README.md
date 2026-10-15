@@ -1,5 +1,31 @@
 # Code Garden — backend autoryzacji
 
+## Kontrola ról (KAN-22)
+
+`app/api/dependencies.py` udostępnia `require_role(*roles: UserRole)`.
+Guard korzysta z `get_current_user`: weryfikuje JWT z HttpOnly cookie i pobiera
+aktualnego użytkownika z bazy. Brak poprawnej sesji daje 401, niedozwolona rola 403.
+Nie ma hierarchii ról ani automatycznego dostępu administratora do innych obszarów.
+
+Przykład ochrony przyszłego endpointu (nie jest dodany do API):
+
+```python
+from fastapi import Depends
+from app.api.dependencies import require_role
+from app.models.user import User, UserRole
+
+@router.get("/example")
+def example(user: User = Depends(require_role(UserRole.TEACHER))):
+    ...
+```
+
+Jeśli endpoint nie potrzebuje obiektu użytkownika, użyj
+`dependencies=[Depends(require_role(UserRole.ADMIN))]` na endpointzie lub routerze.
+Kilka ról można dopuścić jawnie przez `require_role(UserRole.STUDENT, UserRole.TEACHER)`.
+Dla operacji zmieniających dane zachowaj również istniejącą kontrolę `check_origin`.
+KAN-22 nie dodaje endpointów biznesowych. Testy `tests/test_roles.py` tworzą wyłącznie
+testową aplikację i sprawdzają macierz ról, brak/niepoprawną sesję oraz zmianę roli.
+
 GitHub Actions uruchamia check `Backend tests` dla pull requestów i pushów do
 `main`: instaluje zależności z lockfile, uruchamia PostgreSQL 17, stosuje migracje,
 wykonuje testy (w tym integracyjne) i `alembic check`. Baza jest jednorazowa.
