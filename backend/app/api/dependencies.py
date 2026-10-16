@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.security import decode_access_token
 from app.db.session import get_db
-from app.models.user import User, UserRole
+from app.models.user import AccountStatus, TeacherApproval, User, UserRole
 
 
 def check_origin(request: Request):
@@ -31,6 +31,15 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     return user
 
 
+def require_active_user(user: User = Depends(get_current_user)) -> User:
+    """Session metadata and logout remain available to restricted accounts."""
+    if user.status != AccountStatus.ACTIVE:
+        raise HTTPException(status_code=403, detail="Account is inactive")
+    if user.role == UserRole.TEACHER and user.teacher_approval != TeacherApproval.APPROVED:
+        raise HTTPException(status_code=403, detail="Teacher approval required")
+    return user
+
+
 def require_role(*roles: UserRole) -> Callable[..., User]:
     """Require an authenticated user with one of the explicitly allowed DB roles.
 
@@ -41,7 +50,7 @@ def require_role(*roles: UserRole) -> Callable[..., User]:
         raise ValueError("require_role expects at least one UserRole")
     allowed_roles = frozenset(roles)
 
-    def guard(user: User = Depends(get_current_user)) -> User:
+    def guard(user: User = Depends(require_active_user)) -> User:
         if user.role not in allowed_roles:
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return user

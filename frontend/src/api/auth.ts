@@ -1,9 +1,15 @@
+import { apiFetch } from "./client";
+
 export type UserRole = "STUDENT" | "TEACHER" | "ADMIN";
+export type AccountStatus = "ACTIVE" | "INACTIVE";
+export type TeacherApproval = "PENDING" | "APPROVED" | "REJECTED";
 export type User = {
   id: number;
   login: string;
   email: string | null;
   role: UserRole;
+  status: AccountStatus;
+  teacher_approval: TeacherApproval | null;
   created_at: string;
 };
 export type LoginRequest = { login: string; password: string };
@@ -19,8 +25,6 @@ export class AuthApiError extends Error {
     this.name = "AuthApiError";
   }
 }
-
-const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 function validationError(body: unknown): AuthApiError {
   const errors: AuthFieldErrors = {};
@@ -43,7 +47,7 @@ function validationError(body: unknown): AuthApiError {
 async function authRequest(path: string, options: RequestInit = {}): Promise<Response> {
   let response: Response;
   try {
-    response = await fetch(`${API_URL}/auth${path}`, { ...options, credentials: "include" });
+    response = await apiFetch(`/auth${path}`, options);
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") throw error;
     throw new AuthApiError("Nie można połączyć się z serwerem. Spróbuj ponownie.");
@@ -59,10 +63,18 @@ async function authRequest(path: string, options: RequestInit = {}): Promise<Res
 
 async function readUser(response: Response): Promise<User> {
   const data: unknown = await response.json().catch(() => null);
+  return parseUser(data);
+}
+
+export function parseUser(data: unknown): User {
   if (!data || typeof data !== "object" || !("id" in data) || typeof data.id !== "number" ||
       !("login" in data) || typeof data.login !== "string" ||
       !("email" in data) || (data.email !== null && typeof data.email !== "string") ||
       !("role" in data) || !["STUDENT", "TEACHER", "ADMIN"].includes(String(data.role)) ||
+      !("status" in data) || !["ACTIVE", "INACTIVE"].includes(String(data.status)) ||
+      !("teacher_approval" in data) || (data.role === "TEACHER"
+        ? !["PENDING", "APPROVED", "REJECTED"].includes(String(data.teacher_approval))
+        : data.teacher_approval !== null) ||
       !("created_at" in data) || typeof data.created_at !== "string") {
     throw new AuthApiError("Nie udało się pobrać danych użytkownika. Spróbuj ponownie.");
   }

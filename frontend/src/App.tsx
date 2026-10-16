@@ -5,6 +5,7 @@ import "./styles/theme.css";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { ProtectedRoute, PublicRoute } from "./auth/RouteGuards";
 import RolePanel from "./pages/RolePanel";
+import AdminUsersPage from "./pages/AdminUsersPage";
 
 export default function App() {
   return (
@@ -24,7 +25,7 @@ export default function App() {
               <Route path="/teacher" element={<RolePanel title="Panel nauczyciela" />} />
             </Route>
             <Route element={<ProtectedRoute role="ADMIN" />}>
-              <Route path="/admin" element={<RolePanel title="Panel administratora" />} />
+              <Route path="/admin" element={<AdminUsersPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

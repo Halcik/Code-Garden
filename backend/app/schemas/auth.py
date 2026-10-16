@@ -3,7 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
-from app.models.user import UserRole
+from app.models.user import AccountStatus, TeacherApproval, UserRole
 
 
 class LoginRequest(BaseModel):
@@ -39,4 +39,6 @@ class UserResponse(BaseModel):
     login: str
     email: Optional[str]
     role: UserRole
+    status: AccountStatus
+    teacher_approval: Optional[TeacherApproval]
     created_at: datetime

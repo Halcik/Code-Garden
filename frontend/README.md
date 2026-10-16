@@ -1,5 +1,17 @@
 # Frontend — integracja autoryzacji
 
+## Zarządzanie użytkownikami (KAN-23)
+
+`/admin` zawiera listę, filtry roli/statusu/akceptacji, paginację, szczegóły i akcje
+zarządzania kontami. Widok obsługuje jasny i ciemny motyw na podstawie ekranu Figmy.
+Konta nieaktywne oraz nauczyciele oczekujący/odrzuceni widzą komunikat o statusie
+z możliwością ponowienia i wylogowania zamiast pełnego panelu.
+
+Requesty są w `src/api/admin.ts`, wspólny transport cookie w `src/api/client.ts`.
+Testy zachowania routingu i administracji uruchamia `npm test` (Vitest + jsdom).
+Build: `npm run build`. Oba checki są uruchamiane w GitHub Actions.
+Szczegóły i scenariusze ręczne: [KAN-23](../docs/KAN-23.md).
+
 Sesja zalogowanego użytkownika jest dodatkowo sprawdzana po powrocie do karty
 lub okna oraz co minutę, gdy karta jest widoczna. HTTP 401 czyści użytkownika
 i przywraca formularz logowania. Błąd połączenia zachowuje stan użytkownika

@@ -1,6 +1,9 @@
 import { Navigate, Outlet } from "react-router-dom";
 import type { UserRole } from "../api/auth";
 import { useAuth } from "./AuthProvider";
+import { accountAccessMessage } from "./accountAccess";
+import AccountAccessPage from "../pages/AccountAccessPage";
+import "../styles/admin-users.css";
 
 export const ROLE_PATHS: Record<UserRole, string> = {
   STUDENT: "/student",
@@ -27,6 +30,8 @@ export function ProtectedRoute({ role }: { role: UserRole }) {
   if (loading || sessionError) return <SessionStatus />;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== role) return <Navigate to={ROLE_PATHS[user.role]} replace />;
+  const accessMessage = accountAccessMessage(user);
+  if (accessMessage) return <AccountAccessPage message={accessMessage} />;
   return <Outlet />;
 }
 
