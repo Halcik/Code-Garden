@@ -77,3 +77,10 @@ Backend: `.venv/Scripts/python.exe -m pytest -q`. Integracja wymaga
 Testy obejmują role, izolację autorów, pustą listę, filtry, literalne wyszukiwanie,
 sortowanie, paginację, walidację parametrów, autora oraz automatyczny timestamp.
 Frontend: `npm run build` i `npm test` z katalogu frontend.
+
+`TeacherTasksPage.test.tsx` pokrywa ładowanie i pustą listę, brak wyników po
+filtrowaniu, reset paginacji po zmianie filtrów i sortowania, debounce wyszukiwania
+i tematu, błąd API z ponowieniem, osobne komunikaty 401/403 z odświeżeniem sesji,
+nawigację do placeholderów oraz niezależność liczników od filtrów listy.
+Testy używają MemoryRouter i zastępują wyłącznie transport API oraz kontekst sesji;
+przetwarzanie odpowiedzi przez klienta API pozostaje rzeczywiste.
