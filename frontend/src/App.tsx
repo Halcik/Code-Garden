@@ -6,7 +6,9 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { ProtectedRoute, PublicRoute } from "./auth/RouteGuards";
 import RolePanel from "./pages/RolePanel";
 import AdminUsersPage from "./pages/AdminUsersPage";
-import TeacherTasksPage, { TeacherLayout, TaskPlaceholder } from "./pages/TeacherTasksPage";
+import TeacherTasksPage, { TeacherLayout } from "./pages/TeacherTasksPage";
+
+import TaskFormPage from "./pages/TaskFormPage";
 
 export default function App() {
   return (
@@ -26,8 +28,8 @@ export default function App() {
               <Route path="/teacher" element={<TeacherLayout />}>
                 <Route index element={<Navigate to="tasks" replace />} />
                 <Route path="tasks" element={<TeacherTasksPage />} />
-                <Route path="tasks/new" element={<TaskPlaceholder create />} />
-                <Route path="tasks/:taskId" element={<TaskPlaceholder />} />
+                <Route path="tasks/new" element={<TaskFormPage key="new" />} />
+                <Route path="tasks/:taskId/edit" element={<TaskFormPage key="edit" />} />
               </Route>
             </Route>
             <Route element={<ProtectedRoute role="ADMIN" />}>

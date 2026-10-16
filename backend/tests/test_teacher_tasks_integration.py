@@ -90,3 +90,106 @@ def test_database_author_validation_and_update_timestamp(task_users, db_engine):
                              {"id": before.id}).scalar_one()
         assert updated > before.updated_at
         db.rollback()
+
+@pytest.mark.parametrize("name,expected", [(None, 401), ("student", 403), ("admin", 403)])
+def test_write_access(client, task_users, name, expected):
+    authenticate(client, task_users, name)
+    assert client.post("/teacher/tasks", json={"title": "New", "topic": "Python", "difficulty": "EASY", "task_type": "STANDARD"}).status_code == expected
+    assert client.get("/teacher/tasks/1").status_code == expected
+    assert client.patch("/teacher/tasks/1", json={"title": "Changed"}).status_code == expected
+
+
+def test_create_edit_and_ownership(client, task_users):
+    authenticate(client, task_users, "first")
+    payload = {"title": " New task ", "topic": " Python ", "difficulty": "EASY", "task_type": "STANDARD", "estimated_time_minutes": 20}
+    response = client.post("/teacher/tasks", json=payload)
+    assert response.status_code == 201
+    task = response.json()
+    assert task["author_id"] == task_users["first"]
+    assert task["title"] == "New task"
+    assert task["status"] == "DRAFT"
+    path = f'/teacher/tasks/{task["id"]}'
+    assert client.get(path).json() == task
+    assert any(item["id"] == task["id"] for item in client.get("/teacher/tasks").json()["items"])
+    patched = client.patch(path, json={"title": "Changed", "estimated_time_minutes": None, "status": "READY"})
+    assert patched.status_code == 200
+    assert patched.json()["topic"] == "Python"
+    assert patched.json()["estimated_time_minutes"] is None
+    assert client.get(path).json()["title"] == "Changed"
+    authenticate(client, task_users, "second")
+    assert client.get(path).status_code == 404
+    assert client.patch(path, json={"title": "Stolen"}).status_code == 404
+    authenticate(client, task_users, "first")
+    assert client.get(path).json()["title"] == "Changed"
+    assert client.get("/teacher/tasks/2147483647").status_code == 404
+    for invalid in [{"title": " "}, {"topic": " "}, {"difficulty": "INVALID"}, {"status": "PUBLIC"},
+                    {"task_type": "INVALID"}, {"title": None}, {"description": None}, {"status": None},
+                    {"estimated_time_minutes": 0}, {"estimated_time_minutes": -1}, {"estimated_time_minutes": 1.5},
+                    {"author_id": task_users["second"]}, {"title": "x" * 201}, {"topic": "x" * 101}]:
+        assert client.post("/teacher/tasks", json={**payload, **invalid}).status_code == 422
+        assert client.patch(path, json=invalid).status_code == 422
+    assert client.patch(path, json={}).status_code == 422
+
+@pytest.mark.parametrize("name,expected", [(None, 401), ("student", 403), ("admin", 403)])
+@pytest.mark.parametrize("action", ["archive", "restore"])
+def test_archive_roles(client, task_users, name, expected, action):
+    authenticate(client, task_users, name)
+    assert client.patch(f"/teacher/tasks/1/{action}").status_code == expected
+
+
+def test_archive_restore_lifecycle(client, task_users):
+    authenticate(client, task_users, "first")
+    task = client.post("/teacher/tasks", json={"title": "Archive lifecycle", "topic": "Python",
+                                             "difficulty": "HARD", "task_type": "FUNCTION", "status": "READY"}).json()
+    assert task["is_archived"] is False
+    path = f'/teacher/tasks/{task["id"]}'
+    archived = client.patch(f"{path}/archive")
+    assert archived.status_code == 200
+    assert archived.headers["cache-control"] == "no-store"
+    assert archived.json()["is_archived"] is True
+    assert archived.json()["status"] == "READY"
+    assert client.patch(f"{path}/archive").json() == archived.json()
+    assert client.get(path).json()["is_archived"] is True
+    assert client.patch(path, json={"title": "Blocked"}).status_code == 409
+    assert client.get(path).json()["title"] == task["title"]
+    all_tasks = client.get("/teacher/tasks").json()
+    archive_tasks = client.get("/teacher/tasks?archived=true").json()
+    active_tasks = client.get("/teacher/tasks?archived=false").json()
+    assert all_tasks["total"] == archive_tasks["total"] + active_tasks["total"]
+    assert any(item["id"] == task["id"] for item in all_tasks["items"])
+    assert any(item["id"] == task["id"] for item in archive_tasks["items"])
+    assert all(item["is_archived"] for item in archive_tasks["items"])
+    assert all(not item["is_archived"] for item in active_tasks["items"])
+    filtered = client.get("/teacher/tasks?archived=true&status=READY&difficulty=HARD&q=Archive&topic=Python").json()
+    assert any(item["id"] == task["id"] for item in filtered["items"])
+    assert client.get("/teacher/tasks?archived=invalid").status_code == 422
+    restored = client.patch(f"{path}/restore")
+    assert restored.status_code == 200
+    assert restored.json()["is_archived"] is False
+    assert restored.json()["status"] == "READY"
+    assert client.patch(f"{path}/restore").json() == restored.json()
+    assert not any(item["id"] == task["id"] for item in client.get("/teacher/tasks?archived=true").json()["items"])
+    assert client.patch(path, json={"title": "Editable again"}).status_code == 200
+
+
+def test_archive_ownership_and_input(client, task_users):
+    authenticate(client, task_users, "second")
+    task = client.post("/teacher/tasks", json={"title": "Private archive", "topic": "Python", "difficulty": "EASY", "task_type": "STANDARD"}).json()
+    path = f'/teacher/tasks/{task["id"]}'
+    authenticate(client, task_users, "first")
+    for action in ("archive", "restore"):
+        assert client.patch(f"{path}/{action}").status_code == 404
+        assert client.patch(f"/teacher/tasks/2147483647/{action}").status_code == 404
+    authenticate(client, task_users, "second")
+    assert client.get(path).json()["is_archived"] is False
+    for action in ("archive", "restore"):
+        for body in ({"author_id": task_users["first"]}, {"is_archived": True}, {"title": "Sneaky"}):
+            assert client.patch(f"{path}/{action}", json=body).status_code == 422
+        assert client.patch(f"{path}/{action}", headers={"Origin": "https://untrusted.example"}).status_code == 403
+    assert client.patch(path, json={"is_archived": True}).status_code == 422
+    assert client.post("/teacher/tasks", json={"title": "Sneaky", "topic": "Python", "difficulty": "EASY", "task_type": "STANDARD", "is_archived": True}).status_code == 422
+    client.patch(f"{path}/archive")
+    authenticate(client, task_users, "first")
+    assert client.patch(f"{path}/restore").status_code == 404
+    authenticate(client, task_users, "second")
+    assert client.get(path).json()["is_archived"] is True
