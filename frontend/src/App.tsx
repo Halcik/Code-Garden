@@ -6,6 +6,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { ProtectedRoute, PublicRoute } from "./auth/RouteGuards";
 import RolePanel from "./pages/RolePanel";
 import AdminUsersPage from "./pages/AdminUsersPage";
+import TeacherTasksPage, { TeacherLayout, TaskPlaceholder } from "./pages/TeacherTasksPage";
 
 export default function App() {
   return (
@@ -22,7 +23,12 @@ export default function App() {
               <Route path="/student" element={<RolePanel title="Panel ucznia" />} />
             </Route>
             <Route element={<ProtectedRoute role="TEACHER" />}>
-              <Route path="/teacher" element={<RolePanel title="Panel nauczyciela" />} />
+              <Route path="/teacher" element={<TeacherLayout />}>
+                <Route index element={<Navigate to="tasks" replace />} />
+                <Route path="tasks" element={<TeacherTasksPage />} />
+                <Route path="tasks/new" element={<TaskPlaceholder create />} />
+                <Route path="tasks/:taskId" element={<TaskPlaceholder />} />
+              </Route>
             </Route>
             <Route element={<ProtectedRoute role="ADMIN" />}>
               <Route path="/admin" element={<AdminUsersPage />} />
