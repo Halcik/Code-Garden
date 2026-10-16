@@ -1,8 +1,14 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render as renderView, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import type { ReactElement } from "react";
 import type { User } from "../api/auth";
 import * as api from "../api/admin";
 import AdminUsersPage from "./AdminUsersPage";
+
+function render(ui: ReactElement) {
+  return renderView(<MemoryRouter initialEntries={["/admin"]}>{ui}</MemoryRouter>);
+}
 
 vi.mock("../api/admin", async importOriginal => ({
   ...await importOriginal<typeof import("../api/admin")>(),
