@@ -40,7 +40,7 @@ function TaskCountMetric({ title, icon, status, revision }: {
     if (status === null) return;
     const controller = new AbortController();
     setLoading(true); setError(false);
-    listTasks({ ...initialFilters, status }, controller.signal, 1).then(result => {
+    listTasks({ ...initialFilters, status, archived: status === "DRAFT" ? "false" : "" }, controller.signal, 1).then(result => {
       if (!controller.signal.aborted) setCount(result.total);
     }).catch(() => {
       if (!controller.signal.aborted) { setCount(null); setError(true); }

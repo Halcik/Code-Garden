@@ -53,7 +53,7 @@ Nowe komponenty: `components/teacher/EditorIcon.tsx`, `TaskEditorPlaceholders.ts
 
 Po rozszerzeniu wyglądu: 52 testy frontendu zaliczone, build zakończony sukcesem. Testy TSX obejmują obecność placeholderów w obu motywach, blokady przyszłych akcji i brak pól placeholderów w zapisywanym żądaniu. Wizualne porównanie w przeglądarce nadal pozostaje niewykonane z powodu braku dostępnej przeglądarki w narzędziu.
 
-Korekta zakresu: panel tworzenia i edycji korzysta ze wsp?lnego menu bocznego i g?rnego paska listy zada?. Pe?ny wygl?d Figmy i placeholdery dotycz? wy??cznie zawarto?ci ekranu.
+Korekta zakresu: panel tworzenia i edycji korzysta ze wspólnego menu bocznego i górnego paska listy zadań. Pełny wygląd Figmy i placeholdery dotyczą wyłącznie zawartości ekranu.
 
 ## Archiwizacja i przywracanie (rozszerzenie KAN-25)
 

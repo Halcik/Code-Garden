@@ -225,3 +225,30 @@ it("blocks duplicate archive requests and preserves the row after failure for re
   fireEvent.click(screen.getByRole("button", { name: `Więcej akcji: ${task.title}` }));
   expect(screen.getByRole("button", { name: "Archiwizuj" })).toBeTruthy();
 });
+
+it("keeps the draft metric and tab consistent when a draft is archived", async () => {
+  let archived = false;
+  vi.mocked(apiFetch).mockImplementation(async (path, options) => {
+    if (options?.method === "PATCH") { archived = true; return Response.json({ ...task, is_archived: true }); }
+    const query = params(path);
+    const matching = (query.get("archived") !== "false" || !archived) && (query.get("archived") !== "true" || archived);
+    return response(path, matching ? 1 : 0, matching ? [{ ...task, is_archived: archived }] : []);
+  });
+  renderPage(); await screen.findByRole("table");
+  const metric = screen.getByRole("heading", { name: "Wersje robocze" }).closest("article")!;
+  await waitFor(() => expect(within(metric).getByText("1")).toBeTruthy());
+  fireEvent.click(screen.getByRole("button", { name: "Wersje robocze" }));
+  await screen.findByRole("table");
+  fireEvent.click(screen.getByRole("button", { name: `Więcej akcji: ${task.title}` }));
+  fireEvent.click(screen.getByRole("button", { name: "Archiwizuj" }));
+  await screen.findByText("Brak pasujących zadań");
+  await waitFor(() => expect(within(metric).getByText("0")).toBeTruthy());
+  const draftCounts = vi.mocked(apiFetch).mock.calls.map(([path]) => params(path))
+    .filter(query => query.get("limit") === "1" && query.get("status") === "DRAFT");
+  expect(draftCounts.length).toBeGreaterThan(0);
+  expect(draftCounts.every(query => query.get("archived") === "false")).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Wszystkie" }));
+  await screen.findByRole("table");
+  expect(screen.getByText("Tylko do odczytu")).toBeTruthy();
+  await screen.findByText("0 aktywnych · 1 zarchiwizowanych");
+});
