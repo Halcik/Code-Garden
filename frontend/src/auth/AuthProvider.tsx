@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import type { ReactNode } from "react";
 import * as authApi from "../api/auth";
 import type { LoginRequest, User } from "../api/auth";
@@ -83,10 +83,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSessionError("");
   }
 
-  function retrySession() {
+  const retrySession = useCallback(() => {
     setLoading(true);
     setSessionAttempt((attempt) => attempt + 1);
-  }
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, loading, sessionError, signIn, signOut, retrySession }}>
