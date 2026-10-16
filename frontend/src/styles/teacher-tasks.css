@@ -66,3 +66,9 @@
   .teacher-layout .teacher-filters label { flex-basis: 100%; }
 }
 @media (max-width: 480px) { .teacher-metrics { grid-template-columns: minmax(0, 1fr); } }
+.task-save-success { color: var(--color-success); margin-bottom: 16px; }
+.teacher-row-actions { position: relative; display: flex; align-items: center; gap: 8px; min-width: 95px; }
+.teacher-more-button { display: inline-flex; align-items: center; justify-content: center; line-height: 1; border: 0; background: transparent; color: var(--color-text-muted); font-size: 20px !important; padding: 0 6px; min-width: 28px; min-height: 32px; }
+.teacher-action-menu { position: absolute; z-index: 2; right: 0; bottom: 100%; padding: 4px; min-width: 140px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); box-shadow: var(--task-card-shadow); }
+.teacher-action-menu button { width: 100%; border: 0; padding: 8px 12px; border-radius: 4px; background: transparent; color: var(--color-text); text-align: left; }
+.teacher-action-menu button:hover, .teacher-action-menu button:focus-visible { background: var(--color-surface-muted); }

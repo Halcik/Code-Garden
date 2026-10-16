@@ -1,0 +1,67 @@
+.task-editor { display: flex; flex-direction: column; gap: 24px; }
+.editor-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.editor-heading { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.editor-breadcrumb { display: flex; gap: 6px; font-size: 12px; color: var(--color-text-muted); }
+.editor-breadcrumb a { color: var(--color-accent); text-decoration: none; }
+.editor-breadcrumb a:hover { text-decoration: underline; }
+.editor-title-row { display: flex; gap: 8px; align-items: flex-start; }
+.editor-title-row h1 { font-size: 28px; line-height: 1.22; overflow-wrap: anywhere; }
+.editor-title-row .user-badge { flex-shrink: 0; margin-top: 3px; }
+.editor-save-note { color: var(--color-text-muted); font-size: 13px; }
+.editor-header-actions { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+.editor-icon { flex-shrink: 0; display: block; max-width: none; }
+.editor-columns { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
+.editor-main-column { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.editor-settings-column { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.editor-card { padding: 20px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.editor-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.editor-section-heading > div { min-width: 0; }
+.editor-section-heading h2 { font-weight: 700; font-size: 16px; line-height: normal; }
+.editor-section-heading p { color: var(--color-text-muted); font-size: 12px; margin-top: 2px; }
+.editor-card fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 16px; min-width: 0; }
+.editor-card label, .editor-code-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 600; min-width: 0; }
+.editor-card input, .editor-card select, .editor-card textarea { width: 100%; min-width: 0; min-height: 40px; border: 1px solid var(--color-input-border); border-radius: 8px; padding: 10px 12px; background: var(--color-surface); color: var(--color-text-secondary); font: inherit; font-weight: 400; font-size: 13px; line-height: 1.5; }
+.editor-card textarea { min-height: 90px; resize: vertical; }
+.editor-card input::placeholder, .editor-card textarea::placeholder { color: var(--color-text-muted); opacity: 1; }
+.editor-card textarea:disabled { cursor: not-allowed; opacity: 1; }
+.editor-basics-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.editor-basics-footer { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.editor-basics-footer label { max-width: 220px; flex: 1; }
+.editor-note { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface-muted); font-size: 13px; font-weight: 400; }
+.editor-note strong { font-weight: 600; }
+.editor-note p, .editor-card > p, .editor-row-copy p { color: var(--color-text-secondary); font-size: 13px; line-height: 1.5; }
+.editor-placeholder-tag { display: inline-block; font-size: 10px; line-height: 1.4; font-weight: 500; border: 1px solid var(--color-border); border-radius: 4px; padding: 2px 5px; color: var(--color-text-muted); white-space: nowrap; vertical-align: middle; }
+.editor-note .editor-placeholder-tag { margin-left: 6px; }
+.teacher-layout .task-editor .editor-placeholder-button:disabled { opacity: 1; color: var(--color-accent); cursor: not-allowed; }
+.teacher-layout .task-editor .editor-placeholder-button.primary:disabled { color: var(--color-button-text); }
+.editor-section-heading > button { flex-shrink: 0; }
+.editor-code-field pre { margin: 0; min-height: 156px; padding: 16px; border-radius: 8px; background: #101725; color: #d9e2f2; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/21px ui-monospace, Consolas, monospace; font-weight: 400; }
+.editor-code-keyword { color: #7ab7ff; }
+.editor-example-list { display: flex; flex-direction: column; gap: 12px; }
+.editor-test-row, .editor-hint-row { display: flex; align-items: center; gap: 12px; background: var(--color-surface-muted); padding: 12px; border-radius: 8px; }
+.editor-test-number { flex-shrink: 0; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--color-brand-surface); color: var(--color-accent); font-weight: 700; font-size: 12px; }
+.editor-row-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.editor-row-copy strong { font-size: 13px; font-weight: 600; }
+.editor-row-copy code { color: var(--color-text-muted); font: 11px/1.5 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
+.editor-test-row .user-badge { flex-shrink: 0; }
+.editor-hint-row { align-items: flex-start; }
+.editor-hint-row > .editor-icon { margin-top: 2px; }
+.editor-hint-row .admin-text-button { padding: 0; }
+.editor-hint-detailed { background: var(--color-warning-surface); }
+.editor-settings-details { display: flex; flex-direction: column; gap: 16px; margin: 0; }
+.editor-settings-details div { display: flex; justify-content: space-between; gap: 12px; }
+.editor-settings-details dt { color: var(--color-text-muted); }
+.editor-settings-details dd { margin: 0; font-weight: 600; }
+.editor-settings-column .admin-button { align-self: flex-start; text-align: left; }
+.editor-settings-column .editor-placeholder-tag { align-self: flex-start; }
+.editor-readiness { background: var(--color-brand-surface); }
+.editor-readiness ul { list-style: none; margin: 0; padding: 0; color: var(--color-text-secondary); line-height: 1.5; }
+.teacher-layout .task-editor .editor-archive { border: 0; background: transparent; color: var(--color-error); }
+.editor-archive-icon { width: 15px; height: 15px; background: currentColor; mask-repeat: no-repeat; mask-position: center; mask-size: contain; }
+:root[data-theme="dark"] .task-editor { --color-input-border: #475569; }
+:root[data-theme="dark"] .task-editor .editor-placeholder-button:not(.primary):disabled { background: #0f2f24; border-color: #1f6449; color: #f8fafc; }
+@media (max-width: 1250px) { .editor-header { align-items: flex-start; flex-direction: column; gap: 16px; } .editor-basics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .editor-section-heading { flex-wrap: wrap; } }
+@media (max-width: 1000px) { .editor-columns { grid-template-columns: minmax(0, 1fr); } .editor-settings-column { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; } }
+@media (max-width: 600px) { .editor-basics-grid, .editor-settings-column { grid-template-columns: minmax(0, 1fr); } .editor-title-row { flex-wrap: wrap; } .editor-title-row h1 { font-size: 24px; } .editor-header-actions { gap: 6px; } .editor-card { padding: 16px; } .editor-test-row { flex-wrap: wrap; } }
+.editor-archive-notice { padding: 12px 16px; background: var(--color-warning-surface); color: var(--color-text-secondary); border-radius: 8px; }
+.editor-card fieldset:disabled input, .editor-card fieldset:disabled textarea, .editor-card fieldset:disabled select { cursor: not-allowed; }

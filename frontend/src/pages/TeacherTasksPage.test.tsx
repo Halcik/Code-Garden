@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { apiFetch } from "../api/client";
 import type { Task } from "../api/tasks";
-import TeacherTasksPage, { TaskPlaceholder } from "./TeacherTasksPage";
+import TeacherTasksPage from "./TeacherTasksPage";
 
 const auth = vi.hoisted(() => ({ retrySession: vi.fn() }));
 vi.mock("../auth/AuthProvider", () => ({ useAuth: () => auth }));
@@ -12,7 +12,7 @@ vi.mock("../api/client", () => ({ apiFetch: vi.fn() }));
 const task: Task = {
   id: 7, title: "Suma liczb dodatnich", description: "Oblicz sumę.", topic: "Pętle",
   difficulty: "EASY", task_type: "STANDARD", status: "DRAFT", estimated_time_minutes: 15,
-  author_id: 1, created_at: "2026-10-16T10:00:00Z", updated_at: "2026-10-16T10:00:00Z",
+  is_archived: false, author_id: 1, created_at: "2026-10-16T10:00:00Z", updated_at: "2026-10-16T10:00:00Z",
 };
 
 function params(path: string) { return new URL(path, "http://localhost").searchParams; }
@@ -27,8 +27,8 @@ function Location() { return <output aria-label="Adres">{useLocation().pathname}
 function renderPage() {
   return render(<MemoryRouter initialEntries={["/teacher/tasks"]}><Location /><Routes>
     <Route path="/teacher/tasks" element={<TeacherTasksPage />} />
-    <Route path="/teacher/tasks/new" element={<TaskPlaceholder create />} />
-    <Route path="/teacher/tasks/:taskId" element={<TaskPlaceholder />} />
+    <Route path="/teacher/tasks/new" element={<p>Nowe zadanie</p>} />
+    <Route path="/teacher/tasks/:taskId/edit" element={<p>Edycja zadania</p>} />
   </Routes></MemoryRouter>);
 }
 
@@ -142,16 +142,15 @@ it.each([
 });
 
 it.each([
-  ["Utwórz zadanie", "/teacher/tasks/new", "Ekran tworzenia zadania będzie dostępny w kolejnym etapie."],
-  ["Suma liczb dodatnich", "/teacher/tasks/7", "Ekran szczegółów i edycji zadania będzie dostępny w kolejnym etapie."],
-])("opens the placeholder through %s and returns to the list", async (name, path, message) => {
+  ["Utwórz zadanie", "/teacher/tasks/new", "Nowe zadanie"],
+  ["Suma liczb dodatnich", "/teacher/tasks/7/edit", "Edycja zadania"],
+])("navigates to the form through %s", async (name, path, message) => {
   renderPage();
   await screen.findByRole("table");
   fireEvent.click(screen.getByRole("link", { name }));
   expect(screen.getByLabelText("Adres").textContent).toBe(path);
   expect(screen.getByText(message)).toBeTruthy();
-  fireEvent.click(screen.getByRole("link", { name: "Wróć do listy zadań" }));
-  expect(await screen.findByRole("table")).toBeTruthy();
+
 });
 
 it("keeps total and draft counters unchanged when filtering the list", async () => {
@@ -170,5 +169,59 @@ it("keeps total and draft counters unchanged when filtering the list", async () 
   await screen.findByRole("table");
   expect(within(metrics).getByText("51")).toBeTruthy();
   expect(within(metrics).getByText("8")).toBeTruthy();
-  expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => params(path).get("limit") === "1")).toHaveLength(2);
+  expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => params(path).get("limit") === "1")).toHaveLength(3);
+});
+
+it("archives from the row menu and refreshes the list and metrics", async () => {
+  let archived = false;
+  vi.mocked(apiFetch).mockImplementation(async (path, options) => {
+    if (options?.method === "PATCH") { archived = true; return Response.json({ ...task, is_archived: true }); }
+    const query = params(path);
+    return response(path, query.get("archived") === "true" ? archived ? 1 : 0 : 1, [{ ...task, is_archived: archived }]);
+  });
+  renderPage(); await screen.findByRole("table");
+  expect(screen.queryByRole("button", { name: "Archiwizuj" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: `Więcej akcji: ${task.title}` }));
+  fireEvent.click(screen.getByRole("button", { name: "Archiwizuj" }));
+  await screen.findByRole("button", { name: "Przywróć" });
+  expect(screen.getByText("Tylko do odczytu")).toBeTruthy();
+  expect(screen.queryByRole("link", { name: `Otwórz zadanie: ${task.title}` })).toBeNull();
+  expect(apiFetch).toHaveBeenCalledWith("/teacher/tasks/7/archive", expect.objectContaining({ method: "PATCH" }));
+  expect(screen.getByRole("button", { name: "Wszystkie" }).getAttribute("aria-pressed")).toBe("true");
+  await screen.findByText("0 aktywnych · 1 zarchiwizowanych");
+});
+
+it("filters archives, restores and removes the row from archives, then shows it in all tasks", async () => {
+  let archived = true;
+  vi.mocked(apiFetch).mockImplementation(async (path, options) => {
+    if (options?.method === "PATCH") { archived = false; return Response.json({ ...task, is_archived: false }); }
+    const matching = params(path).get("archived") !== "true" || archived;
+    return response(path, matching ? 1 : 0, matching ? [{ ...task, is_archived: archived }] : []);
+  });
+  renderPage(); await screen.findByRole("table");
+  fireEvent.click(screen.getByRole("button", { name: "Zarchiwizowane" }));
+  await waitFor(() => expect(listRequests().at(-1)?.get("archived")).toBe("true"));
+  fireEvent.click(await screen.findByRole("button", { name: "Przywróć" }));
+  await screen.findByText("Brak pasujących zadań");
+  expect(apiFetch).toHaveBeenCalledWith("/teacher/tasks/7/restore", expect.objectContaining({ method: "PATCH" }));
+  fireEvent.click(screen.getByRole("button", { name: "Wszystkie" }));
+  await screen.findByRole("table");
+  expect(listRequests().at(-1)?.has("archived")).toBe(false);
+  expect(screen.getByRole("link", { name: `Otwórz zadanie: ${task.title}` })).toBeTruthy();
+});
+
+it("blocks duplicate archive requests and preserves the row after failure for retry", async () => {
+  let finish!: (value: Response) => void;
+  vi.mocked(apiFetch).mockImplementation((path, options) => options?.method === "PATCH"
+    ? new Promise(done => { finish = done; }) : Promise.resolve(response(path)));
+  renderPage(); await screen.findByRole("table");
+  fireEvent.click(screen.getByRole("button", { name: `Więcej akcji: ${task.title}` }));
+  fireEvent.click(screen.getByRole("button", { name: "Archiwizuj" }));
+  expect((screen.getByRole("button", { name: `Więcej akcji: ${task.title}` }) as HTMLButtonElement).disabled).toBe(true);
+  expect(vi.mocked(apiFetch).mock.calls.filter(([, options]) => options?.method === "PATCH")).toHaveLength(1);
+  await act(async () => finish(Response.json({}, { status: 500 })));
+  expect(await screen.findByRole("alert")).toBeTruthy();
+  expect(screen.getByRole("link", { name: `Otwórz zadanie: ${task.title}` })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: `Więcej akcji: ${task.title}` }));
+  expect(screen.getByRole("button", { name: "Archiwizuj" })).toBeTruthy();
 });
