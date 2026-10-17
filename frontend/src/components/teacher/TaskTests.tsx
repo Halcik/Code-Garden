@@ -104,7 +104,7 @@ export default function TaskTests({ taskId, readOnly }: { taskId?: string; readO
   }, [taskId, attempt]);
   useEffect(() => { if (readOnly) setEditing(undefined); }, [readOnly]);
   async function mutate(operation: () => Promise<unknown>) {
-    if (!taskId || readOnly || lock.current) return;
+    if (!taskId || readOnly || loading || failed || lock.current) return;
     lock.current = true; setBusy(true); setError("");
     const current = generation.current;
     try {
@@ -115,12 +115,15 @@ export default function TaskTests({ taskId, readOnly }: { taskId?: string; readO
     } catch (reason) {
       if (current === generation.current) {
         report(reason);
-        try { setTests(await testRequest<TaskTest[]>(taskId)); } catch { setFailed(true); }
+        try {
+          const items = await testRequest<TaskTest[]>(taskId);
+          if (current === generation.current) setTests(items);
+        } catch { if (current === generation.current) setFailed(true); }
       }
     } finally { lock.current = false; setBusy(false); }
   }
   function drop(event: DragEndEvent) {
-    if (!event.over || event.active.id === event.over.id || lock.current || busy || readOnly || !taskId) return;
+    if (!event.over || event.active.id === event.over.id || lock.current || busy || readOnly || loading || failed || editing !== undefined || !taskId) return;
     const reordered = arrayMove(tests, tests.findIndex(t => t.id === event.active.id), tests.findIndex(t => t.id === event.over?.id));
     setTests(reordered.map((test, i) => ({ ...test, position: i + 1 })));
     void mutate(() => testRequest(taskId, "/reorder", "PATCH", { test_ids: reordered.map(t => t.id) }));
@@ -132,7 +135,7 @@ export default function TaskTests({ taskId, readOnly }: { taskId?: string; readO
     {loading && <p role="status">Ładowanie testów…</p>}
     {error && <p role="alert" className="error-message">{error}</p>}
     {failed && <button type="button" className="admin-button" onClick={() => setAttempt(n => n + 1)}>Odśwież testy</button>}
-    {editing !== undefined && !readOnly && <TestForm key={editing?.id ?? "new"} initial={editing} busy={busy} close={() => setEditing(undefined)} save={data => { void mutate(() => testRequest(taskId!, editing ? `/${editing.id}` : "", editing ? "PATCH" : "POST", data)); }} />}
+    {editing !== undefined && !readOnly && <TestForm key={editing?.id ?? "new"} initial={editing} busy={busy || loading || failed} close={() => setEditing(undefined)} save={data => { void mutate(() => testRequest(taskId!, editing ? `/${editing.id}` : "", editing ? "PATCH" : "POST", data)); }} />}
     {taskId && !loading && !failed && !tests.length && <p>Brak przypadków testowych. Dodaj pierwszy test.</p>}
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={drop}><SortableContext items={tests.map(t => t.id)} strategy={verticalListSortingStrategy}><div className="editor-example-list">{tests.map(test => <TestRow key={test.id} test={test} disabled={disabled || editing !== undefined} edit={() => setEditing(test)} remove={() => { if (window.confirm(`Usunąć test „${test.name}”?`)) void mutate(() => testRequest(taskId!, `/${test.id}`, "DELETE")); }} />)}</div></SortableContext></DndContext>
   </section>;
