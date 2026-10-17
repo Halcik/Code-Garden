@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import TaskFormPage from "./TaskFormPage";
 import { apiFetch } from "../api/client";
+vi.mock("../components/teacher/TaskTests", () => ({ default: () => <section aria-label="Przypadki testowe" /> }));
 const auth = vi.hoisted(() => ({ retrySession: vi.fn() }));
 const theme = vi.hoisted(() => ({ value: "light" }));
 vi.mock("../auth/AuthProvider", () => ({ useAuth: () => auth }));
@@ -77,19 +78,18 @@ it("skips unchanged PATCH and cancels to the list", async () => {
 it.each(["light", "dark"])("shows all Figma editor placeholders in %s mode without saving their data", async mode => {
   theme.value = mode;
   open(); fill();
-  for (const name of ["Przypadki testowe", "Podpowiedzi", "Ustawienia wykonania", "Gotowość zadania", "Publikacja"])
+  expect(screen.getByRole("region", { name: "Przypadki testowe" })).toBeTruthy();
+  for (const name of ["Podpowiedzi", "Ustawienia wykonania", "Gotowość zadania", "Publikacja"])
     expect(screen.getByRole("region", { name: `${name} — placeholder` })).toBeTruthy();
   expect((screen.getByLabelText("Krótka teoria") as HTMLTextAreaElement).disabled).toBe(false);
   expect((screen.getByLabelText("Treść zadania") as HTMLTextAreaElement).disabled).toBe(false);
   expect(screen.queryByRole("button", { name: "Archiwizuj zadanie" })).toBeNull();
-  for (const name of ["Podgląd", "Dodaj przypadek testowy", "Dodaj podpowiedź", "Edytuj limity", "Wyślij do recenzji publicznej"])
+  for (const name of ["Podgląd", "Dodaj podpowiedź", "Edytuj limity", "Wyślij do recenzji publicznej"])
     expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
   for (const button of screen.getAllByRole("button", { name: "Przetestuj zadanie" })) {
     expect((button as HTMLButtonElement).disabled).toBe(true); fireEvent.click(button);
   }
   expect(apiFetch).not.toHaveBeenCalled();
-  expect(screen.getAllByText("Publiczny")).toHaveLength(2);
-  expect(screen.getAllByText("Ukryty")).toHaveLength(2);
   fireEvent.click(screen.getByRole("button", { name: "Utwórz zadanie" }));
   await screen.findByText("Lista zadań");
   const payload = JSON.parse(vi.mocked(apiFetch).mock.calls[0][1]!.body as string);

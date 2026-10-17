@@ -65,3 +65,14 @@
 @media (max-width: 600px) { .editor-basics-grid, .editor-settings-column { grid-template-columns: minmax(0, 1fr); } .editor-title-row { flex-wrap: wrap; } .editor-title-row h1 { font-size: 24px; } .editor-header-actions { gap: 6px; } .editor-card { padding: 16px; } .editor-test-row { flex-wrap: wrap; } }
 .editor-archive-notice { padding: 12px 16px; background: var(--color-warning-surface); color: var(--color-text-secondary); border-radius: 8px; }
 .editor-card fieldset:disabled input, .editor-card fieldset:disabled textarea, .editor-card fieldset:disabled select { cursor: not-allowed; }
+
+.test-grip { touch-action: none; cursor: grab; padding: 8px; }
+.test-grip:active { cursor: grabbing; }
+.test-case-form { border: 1px solid var(--border-color, #80808066); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+.test-case-form fieldset { display: grid; gap: 16px; border: 0; padding: 0; min-width: 0; }
+.test-case-form label { display: grid; gap: 6px; }
+.test-form-actions { display: flex; gap: 10px; }
+.editor-test-row .editor-row-copy { min-width: 0; flex: 1; }
+.editor-test-row code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-test-row small { display: block; opacity: .7; }
+@media (max-width: 700px) { .editor-test-row { flex-wrap: wrap; } .editor-test-row .editor-row-copy { flex-basis: 55%; } }
