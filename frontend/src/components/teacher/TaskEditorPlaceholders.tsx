@@ -13,12 +13,6 @@ function PlaceholderTag() { return <span className="editor-placeholder-tag">Plac
 export function ReviewRule() {
   return <div className="editor-note"><strong>Zasada ponownej recenzji <PlaceholderTag /></strong><p>Istotne zmiany wprowadzone po rozpoczęciu recenzji lub zatwierdzeniu unieważniają wcześniejsze akceptacje i powodują powrót zadania do recenzji. Dotyczy to zmian opisu, teorii, kodu startowego, przypadków testowych, podpowiedzi i wymagań rozwiązania.</p></div>;
 }
-const tests = [
-  ["Podstawowy zakres", "stdin: 10  →  stdout: 2 3 5 7", "Publiczny"],
-  ["Brak liczb pierwszych", "stdin: 1  →  stdout: empty line", "Publiczny"],
-  ["Wartość graniczna", "stdin: 2  →  stdout: 2", "Ukryty"],
-  ["Większy zakres", "stdin: 100  →  stdout: 2 3 5 7 … 97", "Ukryty"],
-];
 const hints = [
   ["Kierunek", "Obsłuż liczby mniejsze niż 2 przed rozpoczęciem pętli sprawdzającej dzielniki."],
   ["Schemat", "Użyj pętli od 2 do int(n ** 0.5) + 1."],
@@ -26,14 +20,6 @@ const hints = [
 ];
 export function TaskContentPlaceholders() {
   return <>
-    <section className="admin-card editor-card" aria-label="Przypadki testowe — placeholder">
-      <Heading title="Przypadki testowe" detail="Testy publiczne pokazują dane wejściowe i wynik; testy ukryte pokazują wyłącznie zaliczenie lub niezaliczenie"><PlaceholderButton icon="Plus">Dodaj przypadek testowy</PlaceholderButton></Heading>
-      <div className="editor-note"><strong>Typy testów <PlaceholderTag /></strong><p>Używaj testów wejścia/wyjścia do sprawdzania oczekiwanych wyników, testów funkcji do weryfikacji sygnatury i zachowania oraz testów strukturalnych do sprawdzania nazw, struktury i reguł implementacji.</p></div>
-      <div className="editor-example-list" aria-label="Przykładowe przypadki testowe">{tests.map(([title, example, visibility], index) => <div className="editor-test-row" key={title}>
-        <span className="editor-test-number">{index + 1}</span><div className="editor-row-copy"><strong>{title}</strong><code>{example}</code></div>
-        <span className={`user-badge ${visibility === "Publiczny" ? "status-active" : "task-draft"}`}>{visibility}</span><EditorIcon name="GripVertical" />
-      </div>)}</div>
-    </section>
     <section className="admin-card editor-card" aria-label="Podpowiedzi — placeholder">
       <Heading title="Podpowiedzi" detail="Ułóż podpowiedzi od ogólnego kierunku do niemal gotowego rozwiązania"><PlaceholderButton icon="Plus">Dodaj podpowiedź</PlaceholderButton></Heading>
       <div className="editor-note"><strong>Wskazówki dotyczące podpowiedzi <PlaceholderTag /></strong><p>Używaj podpowiedzi kierunkowych do ogólnego podejścia, podpowiedzi ze schematem do kluczowej logiki oraz szczegółowych podpowiedzi do kroków implementacji.</p></div>

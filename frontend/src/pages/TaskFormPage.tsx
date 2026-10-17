@@ -1,3 +1,4 @@
+import TaskTests from "../components/teacher/TaskTests";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -108,7 +109,7 @@ export default function TaskFormPage() {
       <div className="editor-heading">
         <nav className="editor-breadcrumb" aria-label="Ścieżka zadania"><Link to="/teacher/tasks" aria-label="Wróć do listy zadań">Zadania</Link><span>/ {taskId ? STATUSES[form.status as keyof typeof STATUSES] : "Nowe zadanie"}</span></nav>
         <div className="editor-title-row"><h1>{taskId ? original?.title || "Edycja zadania" : "Utwórz zadanie"}</h1><span className={`user-badge ${!archived && form.status === "READY" ? "status-active" : "task-draft"}`}>{archived ? "Zarchiwizowane" : STATUSES[form.status as keyof typeof STATUSES]}</span></div>
-        <p className="editor-save-note">{saving ? "Zapisywanie zmian…" : success || (taskId ? "Edytuj podstawowe dane zadania · Ostatnia edycja: Ty" : "Nowa wersja robocza · Uzupełnij informacje i zapisz zadanie")}</p>
+        <p className="editor-save-note">{saving ? "Zapisywanie zmian…" : (taskId ? "Edytuj dane zadania" : "Nowa wersja robocza · Uzupełnij informacje i zapisz zadanie")}</p>
       </div>
       <div className="editor-header-actions"><PlaceholderButton icon="Eye">Podgląd</PlaceholderButton><PlaceholderButton icon="Play">Przetestuj zadanie</PlaceholderButton>
         {archived ? <button className="admin-button primary" type="button" disabled={saving} onClick={restore}>{saving ? "Przywracanie…" : "Przywróć"}</button>
@@ -149,6 +150,7 @@ export default function TaskFormPage() {
                 <PythonCodeEditor value={form.starter_code} onChange={value => change("starter_code", value)} readOnly={saving || archived} />
               </Suspense>
             </section>
+            <TaskTests key={taskId || "new"} taskId={taskId} readOnly={saving || archived} />
             <TaskContentPlaceholders />
           </div>
           <aside className="editor-settings-column" aria-label="Ustawienia zadania"><TaskSettingsPlaceholders onArchive={taskId && !archived ? archive : undefined} busy={saving} archiving={archiving} /></aside>

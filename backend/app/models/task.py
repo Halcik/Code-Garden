@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum, ForeignKey, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -48,7 +49,27 @@ class Task(Base):
     estimated_time_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    tests: Mapped[list["TaskTest"]] = relationship(back_populates="task", cascade="all, delete-orphan", order_by="TaskTest.position")
     author: Mapped[User] = relationship(back_populates="tasks")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),
                                                onupdate=func.now(), nullable=False)
+
+
+class TaskTest(Base):
+    __tablename__ = "task_tests"
+    __table_args__ = (
+        CheckConstraint("position > 0", name="ck_task_tests_position"),
+        CheckConstraint("length(trim(name)) > 0", name="ck_task_tests_name"),
+        CheckConstraint("test_type IN ('INPUT_OUTPUT', 'FUNCTION', 'STRUCTURAL')", name="ck_task_tests_type"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    test_type: Mapped[str] = mapped_column(String(20))
+    config: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    is_hidden: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    position: Mapped[int] = mapped_column(Integer)
+    task: Mapped[Task] = relationship(back_populates="tests")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

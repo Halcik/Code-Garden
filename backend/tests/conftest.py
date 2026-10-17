@@ -26,7 +26,7 @@ def db_engine():
                    env={**os.environ, "DATABASE_URL": url}, check=True)
     engine = create_engine(url)
     with engine.begin() as connection:
-        connection.execute(text("TRUNCATE tasks, users RESTART IDENTITY"))
+        connection.execute(text("TRUNCATE task_tests, tasks, users RESTART IDENTITY"))
     yield engine
     engine.dispose()
 

@@ -3,12 +3,14 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from pydantic import ValidationError
 
 from app.api.dependencies import check_origin, require_role
 from app.db.session import get_db
-from app.models.task import Task, TaskDifficulty, TaskStatus
+from app.models.task import Task, TaskDifficulty, TaskStatus, TaskTest
 from app.models.user import User, UserRole
 from app.schemas.task import TaskArchiveRequest, TaskCreate, TaskList, TaskResponse, TaskUpdate
+from app.schemas.task_test import TaskTestWrite, TaskTestPatch, TaskTestResponse, TaskTestReorder
 
 router = APIRouter(prefix="/teacher", tags=["teacher tasks"])
 
@@ -135,3 +137,81 @@ def set_archived(db: Session, task_id: int, author_id: int, archived: bool, resp
     db.commit()
     db.refresh(task)
     return task
+
+
+# Lock the parent for every mutation, including archive, to serialize ordering changes.
+
+
+def test_parent(db, task_id, author_id, response, write=False):
+    response.headers["Cache-Control"] = "no-store"
+    task = owned_task(db, task_id, author_id, lock=write)
+    if write and task.is_archived:
+        raise HTTPException(409, "Archived tasks are read-only. Restore the task first.")
+    return task
+
+
+def ordered_tests(db, task_id):
+    return list(db.scalars(select(TaskTest).where(TaskTest.task_id == task_id).order_by(TaskTest.position, TaskTest.id)))
+
+
+@router.get("/tasks/{task_id}/tests", response_model=list[TaskTestResponse])
+def list_tests(task_id: int, response: Response, author: User = Depends(require_role(UserRole.TEACHER)), db: Session = Depends(get_db)):
+    test_parent(db, task_id, author.id, response)
+    return ordered_tests(db, task_id)
+
+
+@router.post("/tasks/{task_id}/tests", response_model=TaskTestResponse, status_code=201, dependencies=[Depends(check_origin)])
+def create_test(task_id: int, payload: TaskTestWrite, response: Response, author: User = Depends(require_role(UserRole.TEACHER)), db: Session = Depends(get_db)):
+    test_parent(db, task_id, author.id, response, True)
+    item = TaskTest(task_id=task_id, position=len(ordered_tests(db, task_id)) + 1, **payload.model_dump())
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.patch("/tasks/{task_id}/tests/reorder", response_model=list[TaskTestResponse], dependencies=[Depends(check_origin)])
+def reorder_tests(task_id: int, payload: TaskTestReorder, response: Response, author: User = Depends(require_role(UserRole.TEACHER)), db: Session = Depends(get_db)):
+    test_parent(db, task_id, author.id, response, True)
+    items = ordered_tests(db, task_id)
+    by_id = {item.id: item for item in items}
+    if len(payload.test_ids) != len(by_id) or set(payload.test_ids) != set(by_id):
+        raise HTTPException(422, "Provide every test ID exactly once")
+    for position, test_id in enumerate(payload.test_ids, 1):
+        by_id[test_id].position = position
+    db.commit()
+    return ordered_tests(db, task_id)
+
+
+def find_test(db, task_id, test_id):
+    item = db.scalar(select(TaskTest).where(TaskTest.task_id == task_id, TaskTest.id == test_id))
+    if item is None:
+        raise HTTPException(404, "Test not found")
+    return item
+
+
+@router.patch("/tasks/{task_id}/tests/{test_id}", response_model=TaskTestResponse, dependencies=[Depends(check_origin)])
+def update_test(task_id: int, test_id: int, payload: TaskTestPatch, response: Response, author: User = Depends(require_role(UserRole.TEACHER)), db: Session = Depends(get_db)):
+    test_parent(db, task_id, author.id, response, True)
+    item = find_test(db, task_id, test_id)
+    data = {key: getattr(item, key) for key in ("name", "test_type", "config", "is_hidden")}
+    data.update(payload.model_dump(exclude_unset=True))
+    try:
+        validated = TaskTestWrite.model_validate(data)
+    except ValidationError:
+        raise HTTPException(422, "Invalid test configuration")
+    for key, value in validated.model_dump().items():
+        setattr(item, key, value)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.delete("/tasks/{task_id}/tests/{test_id}", status_code=204, dependencies=[Depends(check_origin)])
+def delete_test(task_id: int, test_id: int, response: Response, author: User = Depends(require_role(UserRole.TEACHER)), db: Session = Depends(get_db)):
+    test_parent(db, task_id, author.id, response, True)
+    db.delete(find_test(db, task_id, test_id))
+    db.flush()
+    for position, item in enumerate(ordered_tests(db, task_id), 1):
+        item.position = position
+    db.commit()
