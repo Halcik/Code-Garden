@@ -94,6 +94,10 @@ def update_task(
     task = owned_task(db, task_id, author.id, lock=True)
     if task.is_archived:
         raise HTTPException(status_code=409, detail="Archived tasks are read-only. Restore the task first.")
+    status = payload.status if "status" in payload.model_fields_set else task.status
+    instructions = payload.instructions if "instructions" in payload.model_fields_set else task.instructions
+    if status == TaskStatus.READY and not (instructions or "").strip():
+        raise HTTPException(status_code=422, detail="Ready tasks require instructions")
     for name, value in payload.model_dump(exclude_unset=True).items():
         setattr(task, name, value)
     db.commit()

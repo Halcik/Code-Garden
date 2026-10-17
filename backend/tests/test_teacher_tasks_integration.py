@@ -111,7 +111,7 @@ def test_create_edit_and_ownership(client, task_users):
     path = f'/teacher/tasks/{task["id"]}'
     assert client.get(path).json() == task
     assert any(item["id"] == task["id"] for item in client.get("/teacher/tasks").json()["items"])
-    patched = client.patch(path, json={"title": "Changed", "estimated_time_minutes": None, "status": "READY"})
+    patched = client.patch(path, json={"title": "Changed", "instructions": "Solve this task", "estimated_time_minutes": None, "status": "READY"})
     assert patched.status_code == 200
     assert patched.json()["topic"] == "Python"
     assert patched.json()["estimated_time_minutes"] is None
@@ -140,7 +140,7 @@ def test_archive_roles(client, task_users, name, expected, action):
 def test_archive_restore_lifecycle(client, task_users):
     authenticate(client, task_users, "first")
     task = client.post("/teacher/tasks", json={"title": "Archive lifecycle", "topic": "Python",
-                                             "difficulty": "HARD", "task_type": "FUNCTION", "status": "READY"}).json()
+                                             "instructions": "Solve this task", "difficulty": "HARD", "task_type": "FUNCTION", "status": "READY"}).json()
     assert task["is_archived"] is False
     path = f'/teacher/tasks/{task["id"]}'
     archived = client.patch(f"{path}/archive")
@@ -193,3 +193,63 @@ def test_archive_ownership_and_input(client, task_users):
     assert client.patch(f"{path}/restore").status_code == 404
     authenticate(client, task_users, "second")
     assert client.get(path).json()["is_archived"] is True
+
+
+def test_content_roundtrip_clear_and_archive(client, task_users, db_engine):
+    authenticate(client, task_users, "first")
+    content = {"description": "Short summary", "theory": "Short theory",
+               "instructions": "Write a Python program", "starter_code": "    print('hello')\n\n"}
+    response = client.post("/teacher/tasks", json={"title": "Content roundtrip", "topic": "Python",
+                           "difficulty": "EASY", "task_type": "STANDARD", **content})
+    assert response.status_code == 201
+    path = f'/teacher/tasks/{response.json()["id"]}'
+    assert all(client.get(path).json()[key] == value for key, value in content.items())
+    with Session(db_engine) as db:
+        stored = db.get(Task, response.json()["id"])
+        assert all(getattr(stored, key) == value for key, value in content.items())
+    code = "\n# new code\n    pass\n"
+    assert client.patch(path, json={"starter_code": code, "theory": None}).status_code == 200
+    result = client.get(path).json()
+    assert result["starter_code"] == code
+    assert result["theory"] is None
+    assert result["instructions"] == content["instructions"]
+    client.patch(f"{path}/archive")
+    for key in content:
+        assert client.patch(path, json={key: "Blocked"}).status_code == 409
+    assert client.get(path).json()["starter_code"] == code
+    client.patch(f"{path}/restore")
+    assert client.patch(path, json={"starter_code": "", "instructions": None}).status_code == 200
+    assert client.get(path).json()["starter_code"] == ""
+
+
+def test_ready_requires_instructions_after_merging_patch(client, task_users):
+    authenticate(client, task_users, "first")
+    payload = {"title": "Readiness", "topic": "Python", "description": "Summary is not instructions", "difficulty": "EASY", "task_type": "STANDARD"}
+    assert client.post("/teacher/tasks", json={**payload, "status": "READY", "instructions": "  "}).status_code == 422
+    draft = client.post("/teacher/tasks", json=payload)
+    assert draft.status_code == 201
+    path = f'/teacher/tasks/{draft.json()["id"]}'
+    assert client.patch(path, json={"status": "READY"}).status_code == 422
+    assert client.patch(path, json={"status": "READY", "instructions": "Solve it"}).status_code == 200
+    assert client.patch(path, json={"instructions": " \n "}).status_code == 422
+    assert client.get(path).json()["instructions"] == "Solve it"
+    assert client.patch(path, json={"status": "DRAFT", "instructions": ""}).status_code == 200
+
+
+def test_summary_and_instructions_are_independent_in_ready_tasks(client, task_users):
+    authenticate(client, task_users, "first")
+    response = client.post("/teacher/tasks", json={"title": "Separate content", "topic": "Python",
+                           "difficulty": "EASY", "task_type": "STANDARD", "status": "READY",
+                           "description": "Summary", "instructions": "Full instructions"})
+    assert response.status_code == 201
+    path = f'/teacher/tasks/{response.json()["id"]}'
+    assert client.patch(path, json={"description": ""}).status_code == 200
+    result = client.get(path).json()
+    assert result["description"] == ""
+    assert result["instructions"] == "Full instructions"
+    assert client.patch(path, json={"instructions": "New instructions"}).status_code == 200
+    result = client.get(path).json()
+    assert result["description"] == ""
+    assert result["instructions"] == "New instructions"
+    assert client.patch(path, json={"instructions": None}).status_code == 422
+    assert client.get(path).json()["instructions"] == "New instructions"

@@ -10,7 +10,7 @@ vi.mock("../auth/AuthProvider", () => ({ useAuth: () => auth }));
 vi.mock("../api/client", () => ({ apiFetch: vi.fn() }));
 
 const task: Task = {
-  id: 7, title: "Suma liczb dodatnich", description: "Oblicz sumę.", topic: "Pętle",
+  id: 7, title: "Suma liczb dodatnich", theory: null, instructions: null, starter_code: null, description: "Oblicz sumę.", topic: "Pętle",
   difficulty: "EASY", task_type: "STANDARD", status: "DRAFT", estimated_time_minutes: 15,
   is_archived: false, author_id: 1, created_at: "2026-10-16T10:00:00Z", updated_at: "2026-10-16T10:00:00Z",
 };
