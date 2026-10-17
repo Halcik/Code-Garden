@@ -5,6 +5,7 @@ export const STATUSES = { DRAFT: "Wersja robocza", READY: "Gotowe" } as const;
 export const TASK_TYPES = { STANDARD: "Standardowe", FUNCTION: "Funkcyjne", STRUCTURAL: "Strukturalne" } as const;
 export type Task = {
   id: number; title: string; description: string; topic: string;
+  theory: string | null; instructions: string | null; starter_code: string | null;
   difficulty: keyof typeof DIFFICULTIES; status: keyof typeof STATUSES;
   task_type: keyof typeof TASK_TYPES; estimated_time_minutes: number | null;
   is_archived: boolean; author_id: number; created_at: string; updated_at: string;
@@ -34,7 +35,7 @@ export async function listTasks(filters: TaskFilters, signal: AbortSignal, limit
 }
 
 
-export type TaskInput = Pick<Task, "title" | "topic" | "description" | "difficulty" | "task_type" | "status" | "estimated_time_minutes">;
+export type TaskInput = Pick<Task, "title" | "topic" | "description" | "theory" | "instructions" | "starter_code" | "difficulty" | "task_type" | "status" | "estimated_time_minutes">;
 
 async function taskRequest(path: string, options?: RequestInit): Promise<Task> {
   const response = await apiFetch(path, { ...options, headers: { "Content-Type": "application/json", ...options?.headers } });

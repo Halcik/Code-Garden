@@ -1,15 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { createTask, getTask, updateTask, archiveTask, restoreTask, DIFFICULTIES, STATUSES, TASK_TYPES, TasksApiError } from "../api/tasks";
 import type { TaskInput } from "../api/tasks";
 import { useAuth } from "../auth/AuthProvider";
 
+const PythonCodeEditor = lazy(() => import("../components/PythonCodeEditor"));
 import EditorIcon from "../components/teacher/EditorIcon";
 import { PlaceholderButton, ReviewRule, TaskContentPlaceholders, TaskSettingsPlaceholders } from "../components/teacher/TaskEditorPlaceholders";
 import "../styles/task-editor.css";
 
-const emptyForm = { title: "", topic: "", description: "", difficulty: "", task_type: "", status: "DRAFT", estimated_time_minutes: "" };
+const emptyForm = { title: "", topic: "", description: "", theory: "", instructions: "", starter_code: "", difficulty: "", task_type: "", status: "DRAFT", estimated_time_minutes: "" };
 type Form = typeof emptyForm;
 export default function TaskFormPage() {
   const { taskId } = useParams();
@@ -40,9 +41,9 @@ export default function TaskFormPage() {
     getTask(taskId, controller.signal).then(task => {
       if (controller.signal.aborted) return;
       setArchived(task.is_archived);
-      const data: TaskInput = { title: task.title, topic: task.topic, description: task.description, difficulty: task.difficulty,
+      const data: TaskInput = { title: task.title, topic: task.topic, description: task.description, theory: task.theory ?? "", instructions: task.instructions ?? "", starter_code: task.starter_code ?? "", difficulty: task.difficulty,
         task_type: task.task_type, status: task.status, estimated_time_minutes: task.estimated_time_minutes };
-      setOriginal(data); setForm({ ...data, estimated_time_minutes: data.estimated_time_minutes?.toString() ?? "" });
+      setOriginal(data); setForm({ ...data, theory: data.theory ?? "", instructions: data.instructions ?? "", starter_code: data.starter_code ?? "", estimated_time_minutes: data.estimated_time_minutes?.toString() ?? "" });
     }).catch(reason => { if (!controller.signal.aborted) setLoadError(message(reason)); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => { controller.abort(); generation.current += 1; };
@@ -53,6 +54,9 @@ export default function TaskFormPage() {
     if (locked.current || archived) return;
     setError(""); setSuccess("");
     const minutes = form.estimated_time_minutes === "" ? null : Number(form.estimated_time_minutes);
+    if (form.status === "READY" && !form.instructions.trim()) {
+      setError("Gotowe zadanie musi zawierać polecenie."); return;
+    }
     if (!form.title.trim() || !form.topic.trim() || !form.difficulty || !form.task_type ||
       (minutes !== null && (!Number.isInteger(minutes) || minutes <= 0 || minutes > 2147483647))) {
       setError("Uzupełnij tytuł, temat, poziom i typ zadania. Czas musi być dodatnią liczbą całkowitą."); return;
@@ -68,7 +72,7 @@ export default function TaskFormPage() {
       if (taskId) await updateTask(taskId, patch); else await createTask(data);
       if (current !== generation.current) return;
       if (!taskId) navigate("/teacher/tasks", { state: { taskSaved: true } });
-      else { setOriginal(data); setForm({ ...data, estimated_time_minutes: minutes?.toString() ?? "" }); setSuccess("Zmiany zostały zapisane."); }
+      else { setOriginal(data); setForm({ ...data, theory: data.theory ?? "", instructions: data.instructions ?? "", starter_code: data.starter_code ?? "", estimated_time_minutes: minutes?.toString() ?? "" }); setSuccess("Zmiany zostały zapisane."); }
     } catch (reason) { if (current === generation.current) setError(message(reason)); }
     finally { locked.current = false; setSaving(false); }
   }
@@ -132,6 +136,19 @@ export default function TaskFormPage() {
                 <div className="editor-basics-footer">{select("status", "Status", STATUSES)}<Link className="admin-button" to="/teacher/tasks">Anuluj</Link></div>
               </fieldset>
             </form>
+            <section className="admin-card editor-card" aria-label="Treści edukacyjne">
+              <div className="editor-section-heading"><div><h2>Treści edukacyjne</h2><p>Teoria i szczegółowe wymagania zadania</p></div></div>
+              <fieldset disabled={saving || archived}>
+                <label>Krótka teoria<textarea form="task-basics-form" rows={4} value={form.theory} onChange={event => change("theory", event.target.value)} /></label>
+                <label>Treść zadania<textarea form="task-basics-form" rows={5} placeholder="Dodaj polecenie i szczegółowe wymagania zadania" value={form.instructions} onChange={event => change("instructions", event.target.value)} /></label>
+              </fieldset>
+            </section>
+            <section className="admin-card editor-card" aria-label="Kod startowy">
+              <div className="editor-section-heading"><div><h2>Kod startowy</h2><p>Początkowa zawartość edytora ucznia · Python</p></div></div>
+              <Suspense fallback={<p role="status">Ładowanie edytora kodu…</p>}>
+                <PythonCodeEditor value={form.starter_code} onChange={value => change("starter_code", value)} readOnly={saving || archived} />
+              </Suspense>
+            </section>
             <TaskContentPlaceholders />
           </div>
           <aside className="editor-settings-column" aria-label="Ustawienia zadania"><TaskSettingsPlaceholders onArchive={taskId && !archived ? archive : undefined} busy={saving} archiving={archiving} /></aside>

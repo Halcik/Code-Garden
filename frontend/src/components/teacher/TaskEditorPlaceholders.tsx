@@ -26,15 +26,6 @@ const hints = [
 ];
 export function TaskContentPlaceholders() {
   return <>
-    <section className="admin-card editor-card" aria-label="Treści edukacyjne — placeholder">
-      <Heading title="Treści edukacyjne" detail="Teoria i szczegółowe wymagania"><PlaceholderTag /></Heading>
-      <label>Krótka teoria<textarea disabled rows={3} placeholder="Placeholder — tutaj dodasz krótką teorię do zadania." /></label>
-      <label>Treść zadania<textarea disabled rows={3} placeholder="Placeholder — tutaj dodasz polecenie i szczegółowe wymagania zadania." /></label>
-    </section>
-    <section className="admin-card editor-card" aria-label="Kod startowy — placeholder">
-      <Heading title="Kod startowy" detail="Wczytywany domyślnie w edytorze ucznia"><PlaceholderTag /></Heading>
-      <div className="editor-code-field"><span>Kod startowy Python</span><pre aria-label="Przykładowy kod startowy"><code><span className="editor-code-keyword">def</span>{" is_prime(n):\n    # Placeholder — edytor kodu wkrótce\n    pass\n\nlimit = int(input())\n# Print primes up to limit"}</code></pre></div>
-    </section>
     <section className="admin-card editor-card" aria-label="Przypadki testowe — placeholder">
       <Heading title="Przypadki testowe" detail="Testy publiczne pokazują dane wejściowe i wynik; testy ukryte pokazują wyłącznie zaliczenie lub niezaliczenie"><PlaceholderButton icon="Plus">Dodaj przypadek testowy</PlaceholderButton></Heading>
       <div className="editor-note"><strong>Typy testów <PlaceholderTag /></strong><p>Używaj testów wejścia/wyjścia do sprawdzania oczekiwanych wyników, testów funkcji do weryfikacji sygnatury i zachowania oraz testów strukturalnych do sprawdzania nazw, struktury i reguł implementacji.</p></div>
