@@ -1,3 +1,4 @@
+import TaskHints from "../components/teacher/TaskHints";
 import TaskTests from "../components/teacher/TaskTests";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -8,7 +9,7 @@ import { useAuth } from "../auth/AuthProvider";
 
 const PythonCodeEditor = lazy(() => import("../components/PythonCodeEditor"));
 import EditorIcon from "../components/teacher/EditorIcon";
-import { PlaceholderButton, ReviewRule, TaskContentPlaceholders, TaskSettingsPlaceholders } from "../components/teacher/TaskEditorPlaceholders";
+import { PlaceholderButton, ReviewRule, TaskSettingsPlaceholders } from "../components/teacher/TaskEditorPlaceholders";
 import "../styles/task-editor.css";
 
 const emptyForm = { title: "", topic: "", description: "", theory: "", instructions: "", starter_code: "", difficulty: "", task_type: "", status: "DRAFT", estimated_time_minutes: "" };
@@ -151,7 +152,7 @@ export default function TaskFormPage() {
               </Suspense>
             </section>
             <TaskTests key={taskId || "new"} taskId={taskId} readOnly={saving || archived} />
-            <TaskContentPlaceholders />
+            <TaskHints key={`hints-${taskId || "new"}`} taskId={taskId} readOnly={saving || archived} />
           </div>
           <aside className="editor-settings-column" aria-label="Ustawienia zadania"><TaskSettingsPlaceholders onArchive={taskId && !archived ? archive : undefined} busy={saving} archiving={archiving} /></aside>
         </div>

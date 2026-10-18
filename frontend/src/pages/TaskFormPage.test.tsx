@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import TaskFormPage from "./TaskFormPage";
 import { apiFetch } from "../api/client";
 vi.mock("../components/teacher/TaskTests", () => ({ default: () => <section aria-label="Przypadki testowe" /> }));
+vi.mock("../components/teacher/TaskHints", () => ({ default: () => <section aria-label="Podpowiedzi"><button disabled>Dodaj podpowiedź</button></section> }));
 const auth = vi.hoisted(() => ({ retrySession: vi.fn() }));
 const theme = vi.hoisted(() => ({ value: "light" }));
 vi.mock("../auth/AuthProvider", () => ({ useAuth: () => auth }));
@@ -79,7 +80,8 @@ it.each(["light", "dark"])("shows all Figma editor placeholders in %s mode witho
   theme.value = mode;
   open(); fill();
   expect(screen.getByRole("region", { name: "Przypadki testowe" })).toBeTruthy();
-  for (const name of ["Podpowiedzi", "Ustawienia wykonania", "Gotowość zadania", "Publikacja"])
+  expect(screen.getByRole("region", { name: "Podpowiedzi" })).toBeTruthy();
+  for (const name of ["Ustawienia wykonania", "Gotowość zadania", "Publikacja"])
     expect(screen.getByRole("region", { name: `${name} — placeholder` })).toBeTruthy();
   expect((screen.getByLabelText("Krótka teoria") as HTMLTextAreaElement).disabled).toBe(false);
   expect((screen.getByLabelText("Treść zadania") as HTMLTextAreaElement).disabled).toBe(false);

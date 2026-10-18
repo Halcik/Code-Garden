@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, closestCenter } from "@dnd-kit/core";
 import type { DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { useListSensors, useSortableRow, reorderList } from "./sortableList";
 import { testRequest } from "../../api/taskTests";
 import type { TaskTest, TestInput, TestType } from "../../api/taskTests";
 import { TasksApiError } from "../../api/tasks";
@@ -18,9 +18,9 @@ function summary(test: TaskTest) {
   return `${rules[String(c.rule_type)]} ${c.expected_value || ""}`;
 }
 function TestRow({ test, disabled, edit, remove }: { test: TaskTest; disabled: boolean; edit: () => void; remove: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: test.id, disabled });
-  return <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className="editor-test-row">
-    <button type="button" disabled={disabled} className="admin-text-button test-grip" aria-label={`Przenieś test ${test.name}`} {...attributes} {...listeners}><EditorIcon name="GripVertical" /></button>
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, style } = useSortableRow(test.id, disabled);
+  return <div ref={setNodeRef} style={style} className="editor-test-row">
+    <button type="button" disabled={disabled} ref={setActivatorNodeRef} className="admin-text-button test-grip" aria-label={`Przenieś test ${test.name}`} {...attributes} {...listeners}><EditorIcon name="GripVertical" /></button>
     <span className="editor-test-number">{test.position}</span><div className="editor-row-copy"><strong>{test.name}</strong><small>{types[test.test_type]}</small><code>{summary(test)}</code></div>
     <span className={`user-badge ${test.is_hidden ? "task-draft" : "status-active"}`}>{test.is_hidden ? "Ukryty" : "Publiczny"}</span>
     <button type="button" className="admin-text-button" disabled={disabled} onClick={edit}>Edytuj</button><button type="button" className="admin-text-button" disabled={disabled} onClick={remove}>Usuń</button>
@@ -87,7 +87,7 @@ export default function TaskTests({ taskId, readOnly }: { taskId?: string; readO
   const [attempt, setAttempt] = useState(0);
   const lock = useRef(false);
   const generation = useRef(0);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  const sensors = useListSensors();
   function report(reason: unknown) {
     if (reason instanceof TasksApiError && [401, 403].includes(reason.status)) retrySession();
     setError(reason instanceof Error ? reason.message : "Sprawdź połączenie i spróbuj ponownie.");
@@ -124,7 +124,8 @@ export default function TaskTests({ taskId, readOnly }: { taskId?: string; readO
   }
   function drop(event: DragEndEvent) {
     if (!event.over || event.active.id === event.over.id || lock.current || busy || readOnly || loading || failed || editing !== undefined || !taskId) return;
-    const reordered = arrayMove(tests, tests.findIndex(t => t.id === event.active.id), tests.findIndex(t => t.id === event.over?.id));
+    const reordered = reorderList(tests, event);
+    if (!reordered) return;
     setTests(reordered.map((test, i) => ({ ...test, position: i + 1 })));
     void mutate(() => testRequest(taskId, "/reorder", "PATCH", { test_ids: reordered.map(t => t.id) }));
   }

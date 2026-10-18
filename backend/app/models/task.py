@@ -50,6 +50,7 @@ class Task(Base):
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
     tests: Mapped[list["TaskTest"]] = relationship(back_populates="task", cascade="all, delete-orphan", order_by="TaskTest.position")
+    hints: Mapped[list["TaskHint"]] = relationship(back_populates="task", cascade="all, delete-orphan", order_by="TaskHint.position")
     author: Mapped[User] = relationship(back_populates="tasks")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),
@@ -71,5 +72,22 @@ class TaskTest(Base):
     is_hidden: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     position: Mapped[int] = mapped_column(Integer)
     task: Mapped[Task] = relationship(back_populates="tests")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class TaskHint(Base):
+    __tablename__ = "task_hints"
+    __table_args__ = (
+        CheckConstraint("position > 0", name="ck_task_hints_position"),
+        CheckConstraint("length(trim(title)) > 0", name="ck_task_hints_title"),
+        CheckConstraint("length(trim(content)) > 0", name="ck_task_hints_content"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    content: Mapped[str] = mapped_column(Text)
+    position: Mapped[int] = mapped_column(Integer)
+    task: Mapped[Task] = relationship(back_populates="hints")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -47,7 +47,6 @@
 .editor-hint-row { align-items: flex-start; }
 .editor-hint-row > .editor-icon { margin-top: 2px; }
 .editor-hint-row .admin-text-button { padding: 0; }
-.editor-hint-detailed { background: var(--color-warning-surface); }
 .editor-settings-details { display: flex; flex-direction: column; gap: 16px; margin: 0; }
 .editor-settings-details div { display: flex; justify-content: space-between; gap: 12px; }
 .editor-settings-details dt { color: var(--color-text-muted); }
@@ -76,3 +75,9 @@
 .editor-test-row code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .editor-test-row small { display: block; opacity: .7; }
 @media (max-width: 700px) { .editor-test-row { flex-wrap: wrap; } .editor-test-row .editor-row-copy { flex-basis: 55%; } }
+
+.editor-hint-row .editor-row-copy { gap: 6px; overflow-wrap: anywhere; }
+.editor-hint-row .editor-row-copy strong { font-weight: 700; }
+.editor-hint-row .editor-row-copy p { white-space: pre-wrap; }
+.editor-hint-row .test-grip { flex-shrink: 0; padding: 0; }
+@media (max-width: 700px) { .editor-hint-row { flex-wrap: wrap; } .editor-hint-row .editor-row-copy { flex-basis: 55%; } }
