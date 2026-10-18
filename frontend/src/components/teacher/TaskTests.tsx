@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, closestCenter } from "@dnd-kit/core";
 import type { DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { useListSensors, useSortableRow, reorderList } from "./sortableList";
 import { testRequest } from "../../api/taskTests";
 import type { TaskTest, TestInput, TestType } from "../../api/taskTests";
 import { TasksApiError } from "../../api/tasks";
 import { useAuth } from "../../auth/AuthProvider";
 import EditorIcon from "./EditorIcon";
+import { useDraftItems } from "./useDraftItems";
 const types: Record<TestType, string> = { INPUT_OUTPUT: "Input / Output", FUNCTION: "Test funkcji", STRUCTURAL: "Test strukturalny" };
 const rules: Record<string, string> = { FUNCTION_EXISTS: "Istnieje funkcja", CLASS_EXISTS: "Istnieje klasa", CALLS_FUNCTION: "Wywołano funkcję", USES_FOR: "Użyto pętli for", USES_WHILE: "Użyto pętli while", USES_IF: "Użyto instrukcji if" };
 function summary(test: TaskTest) {
@@ -18,9 +19,9 @@ function summary(test: TaskTest) {
   return `${rules[String(c.rule_type)]} ${c.expected_value || ""}`;
 }
 function TestRow({ test, disabled, edit, remove }: { test: TaskTest; disabled: boolean; edit: () => void; remove: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: test.id, disabled });
-  return <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className="editor-test-row">
-    <button type="button" disabled={disabled} className="admin-text-button test-grip" aria-label={`Przenieś test ${test.name}`} {...attributes} {...listeners}><EditorIcon name="GripVertical" /></button>
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, style } = useSortableRow(test.id, disabled);
+  return <div ref={setNodeRef} style={style} className="editor-test-row">
+    <button type="button" disabled={disabled} ref={setActivatorNodeRef} className="admin-text-button test-grip" aria-label={`Przenieś test ${test.name}`} {...attributes} {...listeners}><EditorIcon name="GripVertical" /></button>
     <span className="editor-test-number">{test.position}</span><div className="editor-row-copy"><strong>{test.name}</strong><small>{types[test.test_type]}</small><code>{summary(test)}</code></div>
     <span className={`user-badge ${test.is_hidden ? "task-draft" : "status-active"}`}>{test.is_hidden ? "Ukryty" : "Publiczny"}</span>
     <button type="button" className="admin-text-button" disabled={disabled} onClick={edit}>Edytuj</button><button type="button" className="admin-text-button" disabled={disabled} onClick={remove}>Usuń</button>
@@ -76,7 +77,7 @@ function TestForm({ initial, busy, save, close }: { initial: TaskTest | null; bu
     </fieldset>
   </form>;
 }
-export default function TaskTests({ taskId, readOnly }: { taskId?: string; readOnly: boolean }) {
+export default function TaskTests({ taskId, readOnly, onDraftChange, onEditingChange }: { taskId?: string; readOnly: boolean; onDraftChange?: (items: TestInput[]) => void; onEditingChange?: (editing: boolean) => void }) {
   const { retrySession } = useAuth();
   const [tests, setTests] = useState<TaskTest[]>([]);
   const [loading, setLoading] = useState(Boolean(taskId));
@@ -87,7 +88,13 @@ export default function TaskTests({ taskId, readOnly }: { taskId?: string; readO
   const [attempt, setAttempt] = useState(0);
   const lock = useRef(false);
   const generation = useRef(0);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  const sensors = useListSensors();
+  function changeDraft(items: TaskTest[]) {
+    setTests(items);
+    onDraftChange?.(items.map(({ name, test_type, config, is_hidden }) => ({ name, test_type, config, is_hidden })));
+  }
+  const draft = useDraftItems(tests, changeDraft);
+  useEffect(() => { onEditingChange?.(editing !== undefined); }, [editing, onEditingChange]);
   function report(reason: unknown) {
     if (reason instanceof TasksApiError && [401, 403].includes(reason.status)) retrySession();
     setError(reason instanceof Error ? reason.message : "Sprawdź połączenie i spróbuj ponownie.");
@@ -123,20 +130,22 @@ export default function TaskTests({ taskId, readOnly }: { taskId?: string; readO
     } finally { lock.current = false; setBusy(false); }
   }
   function drop(event: DragEndEvent) {
-    if (!event.over || event.active.id === event.over.id || lock.current || busy || readOnly || loading || failed || editing !== undefined || !taskId) return;
-    const reordered = arrayMove(tests, tests.findIndex(t => t.id === event.active.id), tests.findIndex(t => t.id === event.over?.id));
+    if (!event.over || event.active.id === event.over.id || lock.current || busy || readOnly || loading || failed || editing !== undefined) return;
+    const reordered = reorderList(tests, event);
+    if (!reordered) return;
+    if (!taskId) { changeDraft(reordered); return; }
     setTests(reordered.map((test, i) => ({ ...test, position: i + 1 })));
     void mutate(() => testRequest(taskId, "/reorder", "PATCH", { test_ids: reordered.map(t => t.id) }));
   }
   const disabled = readOnly || busy || loading || failed;
   return <section className="admin-card editor-card" aria-label="Przypadki testowe" aria-busy={busy || loading}>
-    <div className="editor-section-heading"><div><h2>Przypadki testowe</h2><p>Definiuj dane testów i przeciągaj za uchwyt, aby ustawić kolejność.</p></div><button type="button" className="admin-button" disabled={!taskId || disabled || editing !== undefined} onClick={() => setEditing(null)}><EditorIcon name="Plus" />Dodaj przypadek testowy</button></div>
-    {!taskId && <p>Zapisz zadanie, aby dodać przypadki testowe.</p>}
+    <div className="editor-section-heading"><div><h2>Przypadki testowe</h2><p>Definiuj dane testów i przeciągaj za uchwyt, aby ustawić kolejność.</p></div><button type="button" className="admin-button" disabled={disabled || editing !== undefined} onClick={() => setEditing(null)}><EditorIcon name="Plus" />Dodaj przypadek testowy</button></div>
+    {!taskId && <p>Wpisy zostaną zapisane razem z zadaniem.</p>}
     {loading && <p role="status">Ładowanie testów…</p>}
     {error && <p role="alert" className="error-message">{error}</p>}
     {failed && <button type="button" className="admin-button" onClick={() => setAttempt(n => n + 1)}>Odśwież testy</button>}
-    {editing !== undefined && !readOnly && <TestForm key={editing?.id ?? "new"} initial={editing} busy={busy || loading || failed} close={() => setEditing(undefined)} save={data => { void mutate(() => testRequest(taskId!, editing ? `/${editing.id}` : "", editing ? "PATCH" : "POST", data)); }} />}
-    {taskId && !loading && !failed && !tests.length && <p>Brak przypadków testowych. Dodaj pierwszy test.</p>}
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={drop}><SortableContext items={tests.map(t => t.id)} strategy={verticalListSortingStrategy}><div className="editor-example-list">{tests.map(test => <TestRow key={test.id} test={test} disabled={disabled || editing !== undefined} edit={() => setEditing(test)} remove={() => { if (window.confirm(`Usunąć test „${test.name}”?`)) void mutate(() => testRequest(taskId!, `/${test.id}`, "DELETE")); }} />)}</div></SortableContext></DndContext>
+    {editing !== undefined && !readOnly && <TestForm key={editing?.id ?? "new"} initial={editing} busy={busy || loading || failed} close={() => setEditing(undefined)} save={data => { if (!taskId) { draft.save(data, editing); setEditing(undefined); } else void mutate(() => testRequest(taskId, editing ? `/${editing.id}` : "", editing ? "PATCH" : "POST", data)); }} />}
+    {!loading && !failed && !tests.length && <p>Brak przypadków testowych. Dodaj pierwszy test.</p>}
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={drop}><SortableContext items={tests.map(t => t.id)} strategy={verticalListSortingStrategy}><div className="editor-example-list">{tests.map(test => <TestRow key={test.id} test={test} disabled={disabled || editing !== undefined} edit={() => setEditing(test)} remove={() => { if (window.confirm(`Usunąć test „${test.name}”?`)) { if (!taskId) draft.remove(test.id); else void mutate(() => testRequest(taskId, `/${test.id}`, "DELETE")); } }} />)}</div></SortableContext></DndContext>
   </section>;
 }

@@ -1,4 +1,6 @@
 import { apiFetch } from "./client";
+import type { TestInput } from "./taskTests";
+import type { HintInput } from "./taskHints";
 
 export const DIFFICULTIES = { EASY: "Łatwy", MEDIUM: "Średni", HARD: "Trudny" } as const;
 export const STATUSES = { DRAFT: "Wersja robocza", READY: "Gotowe" } as const;
@@ -49,7 +51,8 @@ async function taskRequest(path: string, options?: RequestInit): Promise<Task> {
   return response.json();
 }
 export const getTask = (id: string, signal: AbortSignal) => taskRequest(`/teacher/tasks/${id}`, { signal });
-export const createTask = (data: TaskInput) => taskRequest("/teacher/tasks", { method: "POST", body: JSON.stringify(data) });
+export type TaskCreateInput = TaskInput & { tests?: TestInput[]; hints?: HintInput[] };
+export const createTask = (data: TaskCreateInput) => taskRequest("/teacher/tasks", { method: "POST", body: JSON.stringify(data) });
 export const updateTask = (id: string, data: Partial<TaskInput>) => taskRequest(`/teacher/tasks/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 
 export const archiveTask = (id: number) => taskRequest(`/teacher/tasks/${id}/archive`, { method: "PATCH" });

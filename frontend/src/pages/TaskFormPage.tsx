@@ -1,14 +1,17 @@
+import TaskHints from "../components/teacher/TaskHints";
 import TaskTests from "../components/teacher/TaskTests";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { createTask, getTask, updateTask, archiveTask, restoreTask, DIFFICULTIES, STATUSES, TASK_TYPES, TasksApiError } from "../api/tasks";
 import type { TaskInput } from "../api/tasks";
+import type { TestInput } from "../api/taskTests";
+import type { HintInput } from "../api/taskHints";
 import { useAuth } from "../auth/AuthProvider";
 
 const PythonCodeEditor = lazy(() => import("../components/PythonCodeEditor"));
 import EditorIcon from "../components/teacher/EditorIcon";
-import { PlaceholderButton, ReviewRule, TaskContentPlaceholders, TaskSettingsPlaceholders } from "../components/teacher/TaskEditorPlaceholders";
+import { PlaceholderButton, ReviewRule, TaskSettingsPlaceholders } from "../components/teacher/TaskEditorPlaceholders";
 import "../styles/task-editor.css";
 
 const emptyForm = { title: "", topic: "", description: "", theory: "", instructions: "", starter_code: "", difficulty: "", task_type: "", status: "DRAFT", estimated_time_minutes: "" };
@@ -27,6 +30,10 @@ export default function TaskFormPage() {
   const [archived, setArchived] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [draftTests, setDraftTests] = useState<TestInput[]>([]);
+  const [draftHints, setDraftHints] = useState<HintInput[]>([]);
+  const [editingTest, setEditingTest] = useState(false);
+  const [editingHint, setEditingHint] = useState(false);
   const locked = useRef(false);
   const generation = useRef(0);
   function message(reason: unknown) {
@@ -37,6 +44,7 @@ export default function TaskFormPage() {
     const controller = new AbortController();
     generation.current += 1;
     setError(""); setLoadError(""); setSuccess(""); setOriginal(null); setForm(emptyForm); setArchived(false);
+    setDraftTests([]); setDraftHints([]); setEditingTest(false); setEditingHint(false);
     if (!taskId) { setLoading(false); return () => controller.abort(); }
     setLoading(true);
     getTask(taskId, controller.signal).then(task => {
@@ -54,6 +62,9 @@ export default function TaskFormPage() {
     event.preventDefault();
     if (locked.current || archived) return;
     setError(""); setSuccess("");
+    if (!taskId && (editingTest || editingHint)) {
+      setError("Zapisz lub anuluj otwarty formularz testu albo podpowiedzi przed utworzeniem zadania."); return;
+    }
     const minutes = form.estimated_time_minutes === "" ? null : Number(form.estimated_time_minutes);
     if (form.status === "READY" && !form.instructions.trim()) {
       setError("Gotowe zadanie musi zawierać polecenie."); return;
@@ -70,7 +81,8 @@ export default function TaskFormPage() {
     locked.current = true; setSaving(true);
     const current = generation.current;
     try {
-      if (taskId) await updateTask(taskId, patch); else await createTask(data);
+      if (taskId) await updateTask(taskId, patch);
+      else await createTask({ ...data, tests: draftTests, hints: draftHints });
       if (current !== generation.current) return;
       if (!taskId) navigate("/teacher/tasks", { state: { taskSaved: true } });
       else { setOriginal(data); setForm({ ...data, theory: data.theory ?? "", instructions: data.instructions ?? "", starter_code: data.starter_code ?? "", estimated_time_minutes: minutes?.toString() ?? "" }); setSuccess("Zmiany zostały zapisane."); }
@@ -150,8 +162,8 @@ export default function TaskFormPage() {
                 <PythonCodeEditor value={form.starter_code} onChange={value => change("starter_code", value)} readOnly={saving || archived} />
               </Suspense>
             </section>
-            <TaskTests key={taskId || "new"} taskId={taskId} readOnly={saving || archived} />
-            <TaskContentPlaceholders />
+            <TaskTests key={taskId || "new"} taskId={taskId} readOnly={saving || archived} onDraftChange={setDraftTests} onEditingChange={setEditingTest} />
+            <TaskHints key={`hints-${taskId || "new"}`} taskId={taskId} readOnly={saving || archived} onDraftChange={setDraftHints} onEditingChange={setEditingHint} />
           </div>
           <aside className="editor-settings-column" aria-label="Ustawienia zadania"><TaskSettingsPlaceholders onArchive={taskId && !archived ? archive : undefined} busy={saving} archiving={archiving} /></aside>
         </div>

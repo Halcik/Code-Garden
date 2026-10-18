@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import TaskFormPage from "./TaskFormPage";
 import { apiFetch } from "../api/client";
 vi.mock("../components/teacher/TaskTests", () => ({ default: () => <section aria-label="Przypadki testowe" /> }));
+vi.mock("../components/teacher/TaskHints", () => ({ default: () => <section aria-label="Podpowiedzi"><button disabled>Dodaj podpowiedź</button></section> }));
 const auth = vi.hoisted(() => ({ retrySession: vi.fn() }));
 const theme = vi.hoisted(() => ({ value: "light" }));
 vi.mock("../auth/AuthProvider", () => ({ useAuth: () => auth }));
@@ -35,7 +36,7 @@ it("creates a task, trims fields and returns to the list", async () => {
   expect(await screen.findByText("Lista zadań")).toBeTruthy();
   const [path, options] = vi.mocked(apiFetch).mock.calls[0];
   expect(path).toBe("/teacher/tasks"); expect(options?.method).toBe("POST");
-  expect(JSON.parse(options!.body as string)).toEqual({ title: "Nowe zadanie", topic: "Python", description: "", theory: "", instructions: "", starter_code: "", difficulty: "EASY", task_type: "STANDARD", status: "DRAFT", estimated_time_minutes: null });
+  expect(JSON.parse(options!.body as string)).toEqual({ title: "Nowe zadanie", topic: "Python", description: "", theory: "", instructions: "", starter_code: "", difficulty: "EASY", task_type: "STANDARD", status: "DRAFT", estimated_time_minutes: null, tests: [], hints: [] });
 });
 it("validates required fields, whitespace and positive integer time", () => {
   open(); fireEvent.click(screen.getByRole("button", { name: "Utwórz zadanie" }));
@@ -79,7 +80,8 @@ it.each(["light", "dark"])("shows all Figma editor placeholders in %s mode witho
   theme.value = mode;
   open(); fill();
   expect(screen.getByRole("region", { name: "Przypadki testowe" })).toBeTruthy();
-  for (const name of ["Podpowiedzi", "Ustawienia wykonania", "Gotowość zadania", "Publikacja"])
+  expect(screen.getByRole("region", { name: "Podpowiedzi" })).toBeTruthy();
+  for (const name of ["Ustawienia wykonania", "Gotowość zadania", "Publikacja"])
     expect(screen.getByRole("region", { name: `${name} — placeholder` })).toBeTruthy();
   expect((screen.getByLabelText("Krótka teoria") as HTMLTextAreaElement).disabled).toBe(false);
   expect((screen.getByLabelText("Treść zadania") as HTMLTextAreaElement).disabled).toBe(false);
@@ -93,7 +95,7 @@ it.each(["light", "dark"])("shows all Figma editor placeholders in %s mode witho
   fireEvent.click(screen.getByRole("button", { name: "Utwórz zadanie" }));
   await screen.findByText("Lista zadań");
   const payload = JSON.parse(vi.mocked(apiFetch).mock.calls[0][1]!.body as string);
-  expect(Object.keys(payload).sort()).toEqual(["description", "difficulty", "estimated_time_minutes", "instructions", "starter_code", "status", "task_type", "theory", "title", "topic"]);
+  expect(Object.keys(payload).sort()).toEqual(["description", "difficulty", "estimated_time_minutes", "hints", "instructions", "starter_code", "status", "task_type", "tests", "theory", "title", "topic"]);
 });
 
 it("opens archived tasks read-only and restores before enabling editing", async () => {

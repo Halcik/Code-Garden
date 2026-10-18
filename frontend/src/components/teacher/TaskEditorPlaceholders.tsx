@@ -13,22 +13,6 @@ function PlaceholderTag() { return <span className="editor-placeholder-tag">Plac
 export function ReviewRule() {
   return <div className="editor-note"><strong>Zasada ponownej recenzji <PlaceholderTag /></strong><p>Istotne zmiany wprowadzone po rozpoczęciu recenzji lub zatwierdzeniu unieważniają wcześniejsze akceptacje i powodują powrót zadania do recenzji. Dotyczy to zmian opisu, teorii, kodu startowego, przypadków testowych, podpowiedzi i wymagań rozwiązania.</p></div>;
 }
-const hints = [
-  ["Kierunek", "Obsłuż liczby mniejsze niż 2 przed rozpoczęciem pętli sprawdzającej dzielniki."],
-  ["Schemat", "Użyj pętli od 2 do int(n ** 0.5) + 1."],
-  ["Szczegółowa", "Zwróć False, gdy n % divisor == 0; jeśli pętla zakończy się bez znalezienia dzielnika, zwróć True."],
-];
-export function TaskContentPlaceholders() {
-  return <>
-    <section className="admin-card editor-card" aria-label="Podpowiedzi — placeholder">
-      <Heading title="Podpowiedzi" detail="Ułóż podpowiedzi od ogólnego kierunku do niemal gotowego rozwiązania"><PlaceholderButton icon="Plus">Dodaj podpowiedź</PlaceholderButton></Heading>
-      <div className="editor-note"><strong>Wskazówki dotyczące podpowiedzi <PlaceholderTag /></strong><p>Używaj podpowiedzi kierunkowych do ogólnego podejścia, podpowiedzi ze schematem do kluczowej logiki oraz szczegółowych podpowiedzi do kroków implementacji.</p></div>
-      <div className="editor-example-list" aria-label="Przykładowe podpowiedzi">{hints.map(([title, text], index) => <div className={`editor-hint-row ${index === 2 ? "editor-hint-detailed" : ""}`} key={title}>
-        <EditorIcon name="GripVertical" /><div className="editor-row-copy"><strong>Podpowiedź {index + 1} · {title}</strong><p>{text}</p></div><button type="button" disabled className="admin-text-button" title="Placeholder — edycja podpowiedzi wkrótce">Edytuj</button>
-      </div>)}</div>
-    </section>
-  </>;
-}
 export function TaskSettingsPlaceholders({ onArchive, archiving = false, busy = false }: { onArchive?: () => void; archiving?: boolean; busy?: boolean }) {
   return <>
     <section className="admin-card editor-card" aria-label="Ustawienia wykonania — placeholder">
