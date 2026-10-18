@@ -9,6 +9,7 @@ import type { TaskHint, HintInput } from "../../api/taskHints";
 import { TasksApiError } from "../../api/tasks";
 import { useAuth } from "../../auth/AuthProvider";
 import EditorIcon from "./EditorIcon";
+import { useDraftItems } from "./useDraftItems";
 function HintRow({ hint, disabled, edit, remove }: { hint: TaskHint; disabled: boolean; edit: () => void; remove: () => void }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, style } = useSortableRow(hint.id, disabled);
   return <div ref={setNodeRef} style={style} className="editor-hint-row">
@@ -38,7 +39,7 @@ function HintForm({ initial, busy, save, close }: { initial: TaskHint | null; bu
     </fieldset>
   </form>;
 }
-export default function TaskHints({ taskId, readOnly }: { taskId?: string; readOnly: boolean }) {
+export default function TaskHints({ taskId, readOnly, onDraftChange, onEditingChange }: { taskId?: string; readOnly: boolean; onDraftChange?: (items: HintInput[]) => void; onEditingChange?: (editing: boolean) => void }) {
   const { retrySession } = useAuth();
   const [hints, setHints] = useState<TaskHint[]>([]);
   const [loading, setLoading] = useState(Boolean(taskId));
@@ -50,6 +51,12 @@ export default function TaskHints({ taskId, readOnly }: { taskId?: string; readO
   const lock = useRef(false);
   const generation = useRef(0);
   const sensors = useListSensors();
+  function changeDraft(items: TaskHint[]) {
+    setHints(items);
+    onDraftChange?.(items.map(({ title, content }) => ({ title, content })));
+  }
+  const draft = useDraftItems(hints, changeDraft);
+  useEffect(() => { onEditingChange?.(editing !== undefined); }, [editing, onEditingChange]);
   function report(reason: unknown) {
     if (reason instanceof TasksApiError && [401, 403].includes(reason.status)) retrySession();
     setError(reason instanceof Error ? reason.message : "Sprawdź połączenie i spróbuj ponownie.");
@@ -85,22 +92,23 @@ export default function TaskHints({ taskId, readOnly }: { taskId?: string; readO
     } finally { lock.current = false; setBusy(false); }
   }
   function drop(event: DragEndEvent) {
-    if (!event.over || event.active.id === event.over.id || lock.current || busy || readOnly || loading || failed || editing !== undefined || !taskId) return;
+    if (!event.over || event.active.id === event.over.id || lock.current || busy || readOnly || loading || failed || editing !== undefined) return;
     const reordered = reorderList(hints, event);
     if (!reordered) return;
+    if (!taskId) { changeDraft(reordered); return; }
     setHints(reordered);
     void mutate(() => hintRequest(taskId, "/reorder", "PATCH", { hint_ids: reordered.map(t => t.id) }));
   }
   const disabled = readOnly || busy || loading || failed;
   return <section className="admin-card editor-card" aria-label="Podpowiedzi" aria-busy={busy || loading}>
-    <div className="editor-section-heading"><div><h2>Podpowiedzi</h2><p>Ułóż podpowiedzi od ogólnego kierunku do niemal gotowego rozwiązania</p></div><button type="button" className="admin-button" disabled={!taskId || disabled || editing !== undefined} onClick={() => setEditing(null)}><EditorIcon name="Plus" />Dodaj podpowiedź</button></div>
-    {!taskId && <p>Zapisz zadanie, aby dodać podpowiedzi.</p>}
+    <div className="editor-section-heading"><div><h2>Podpowiedzi</h2><p>Ułóż podpowiedzi od ogólnego kierunku do niemal gotowego rozwiązania</p></div><button type="button" className="admin-button" disabled={disabled || editing !== undefined} onClick={() => setEditing(null)}><EditorIcon name="Plus" />Dodaj podpowiedź</button></div>
+    {!taskId && <p>Wpisy zostaną zapisane razem z zadaniem.</p>}
     {loading && <p role="status">Ładowanie podpowiedzi…</p>}
     {error && <p role="alert" className="error-message">{error}</p>}
     {failed && <button type="button" className="admin-button" onClick={() => setAttempt(n => n + 1)}>Odśwież podpowiedzi</button>}
-    {editing !== undefined && !readOnly && <HintForm key={editing?.id ?? "new"} initial={editing} busy={busy || loading || failed} close={() => setEditing(undefined)} save={data => { void mutate(() => hintRequest(taskId!, editing ? `/${editing.id}` : "", editing ? "PATCH" : "POST", data)); }} />}
+    {editing !== undefined && !readOnly && <HintForm key={editing?.id ?? "new"} initial={editing} busy={busy || loading || failed} close={() => setEditing(undefined)} save={data => { if (!taskId) { draft.save(data, editing); setEditing(undefined); } else void mutate(() => hintRequest(taskId, editing ? `/${editing.id}` : "", editing ? "PATCH" : "POST", data)); }} />}
     <div className="editor-note"><strong>Wskazówki dotyczące podpowiedzi</strong><p>Używaj podpowiedzi kierunkowych do ogólnego podejścia, podpowiedzi ze schematem do kluczowej logiki oraz szczegółowych podpowiedzi do kroków implementacji.</p></div>
-    {taskId && !loading && !failed && !hints.length && <p>Brak podpowiedzi. Dodaj pierwszą podpowiedź.</p>}
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={drop}><SortableContext items={hints.map(t => t.id)} strategy={verticalListSortingStrategy}><div className="editor-example-list">{hints.map(hint => <HintRow key={hint.id} hint={hint} disabled={disabled || editing !== undefined} edit={() => setEditing(hint)} remove={() => { if (window.confirm(`Usunąć podpowiedź „${hint.title}”?`)) void mutate(() => hintRequest(taskId!, `/${hint.id}`, "DELETE")); }} />)}</div></SortableContext></DndContext>
+    {!loading && !failed && !hints.length && <p>Brak podpowiedzi. Dodaj pierwszą podpowiedź.</p>}
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={drop}><SortableContext items={hints.map(t => t.id)} strategy={verticalListSortingStrategy}><div className="editor-example-list">{hints.map(hint => <HintRow key={hint.id} hint={hint} disabled={disabled || editing !== undefined} edit={() => setEditing(hint)} remove={() => { if (window.confirm(`Usunąć podpowiedź „${hint.title}”?`)) { if (!taskId) draft.remove(hint.id); else void mutate(() => hintRequest(taskId, `/${hint.id}`, "DELETE")); } }} />)}</div></SortableContext></DndContext>
   </section>;
 }

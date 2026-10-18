@@ -10,7 +10,7 @@
 - `backend/app/main.py`: DELETE w CORS.
 - `frontend/src/api/taskTests.ts`: typy oraz komunikacja API.
 - `frontend/src/components/teacher/TaskTests.tsx`: lista, formularz dynamiczny, potwierdzenie usuwania, publiczny/ukryty i DnD.
-- `frontend/src/pages/TaskFormPage.tsx`: osadzenie sekcji w edycji zadania; nowe zadanie wymaga najpierw zapisania.
+- `frontend/src/pages/TaskFormPage.tsx`: osadzenie sekcji w tworzeniu i edycji zadania; przed utworzeniem zadania testy są przechowywane lokalnie w formularzu.
 - `frontend/src/components/teacher/TaskEditorPlaceholders.tsx`: usunięcie przykładowych testów; pozostałe placeholdery zachowane.
 - `frontend/src/styles/task-editor.css`: formularz i uchwyt.
 - `frontend/package.json`, `frontend/package-lock.json`: zależności dnd-kit.
@@ -52,6 +52,8 @@ Reorder przyjmuje `{"test_ids": [4, 2, 7, 1]}` i wymaga dokładnie wszystkich id
 Wyłącznie nauczyciel będący autorem ma dostęp. Cudze zadanie lub test poza wskazanym zadaniem daje 404; inna rola 403. Archiwalne zadania można odczytać, ale każdy zapis daje 409. Zachowane są sprawdzanie Origin i brak cache odpowiedzi.
 
 ## Formularz i kolejność
+
+Przy tworzeniu zadania można dodawać, edytować, usuwać i sortować testy oraz podpowiedzi bez wysyłania żądań dla poszczególnych wpisów. `POST /teacher/tasks` przyjmuje opcjonalne tablice `tests` i `hints` z danymi wpisów w wybranej kolejności. Backend waliduje całość i zapisuje zadanie wraz z wpisami w jednej transakcji, nadając pozycje od 1. Błąd zapisu zachowuje dane formularza do ponownej próby. Otwarty formularz wpisu należy zatwierdzić lub anulować przed utworzeniem zadania. Po utworzeniu zadania edycja wpisów korzysta z istniejących endpointów CRUD i reorder. Odświeżenie strony przed utworzeniem zadania usuwa lokalne dane.
 
 Dynamiczny formularz wewnątrz sekcji edytora obsługuje wszystkie trzy typy i niezależną widoczność. INPUT_OUTPUT wymaga niepustego outputu, dopuszcza pusty input i zachowuje whitespace. FUNCTION wymaga nazwy, tablicy JSON i wyniku JSON. STRUCTURAL udostępnia FUNCTION_EXISTS, CLASS_EXISTS, CALLS_FUNCTION, USES_FOR, USES_WHILE, USES_IF. FUNCTION_EXISTS, CLASS_EXISTS i CALLS_FUNCTION wymagają oczekiwanej nazwy. CALLS_FUNCTION definiuje wymaganie wywołania wskazanej funkcji, np. `print`, `input`, `len`, `range`, `sum`; na tym etapie nie analizuje kodu. Konfiguracja to np. `{"rule_type": "CALLS_FUNCTION", "expected_value": "print"}`. Rozszerzenie nie wymaga migracji, ponieważ konfiguracja jest przechowywana w JSONB.
 

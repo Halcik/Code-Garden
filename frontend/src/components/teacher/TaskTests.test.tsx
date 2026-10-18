@@ -67,10 +67,9 @@ it("shows archived tests and disables all mutations", async () => {
   }
 });
 
-it("waits for task creation and never fetches without a task id", () => {
+it("allows preparing tests before task creation without fetching", () => {
   render(<TaskTests readOnly={false} />);
-  expect(addButton().disabled).toBe(true);
-  expect(screen.getByText("Zapisz zadanie, aby dodać przypadki testowe.")).toBeTruthy();
+  expect(addButton().disabled).toBe(false);
   expect(testRequest).not.toHaveBeenCalled();
 });
 

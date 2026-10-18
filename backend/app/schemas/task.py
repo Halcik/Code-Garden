@@ -3,6 +3,8 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.task import TaskDifficulty, TaskStatus, TaskType
+from app.schemas.task_test import TaskTestWrite
+from app.schemas.task_hint import TaskHintWrite
 
 
 class TaskResponse(BaseModel):
@@ -34,6 +36,9 @@ class TaskList(BaseModel):
 
 class TaskCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
+
+    tests: list[TaskTestWrite] = Field(default_factory=list)
+    hints: list[TaskHintWrite] = Field(default_factory=list)
 
     title: str = Field(min_length=1, max_length=200)
     topic: str = Field(min_length=1, max_length=100)

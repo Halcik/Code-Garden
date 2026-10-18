@@ -34,3 +34,34 @@ it("sorts through the real keyboard sensor only from the grip and saves one reor
   expect(vi.mocked(hintRequest).mock.calls.filter(call => call[2] === "PATCH")).toHaveLength(1);
   await waitFor(() => expect([...document.querySelectorAll(".editor-hint-row strong")].map(node => node.textContent)).toEqual(["Podpowiedź 1 · Hint 2", "Podpowiedź 2 · Hint 1"]));
 });
+
+it("sorts local drafts without any network request", async () => {
+  // jsdom supplies no layout. Give the real dnd-kit collision detector two rows.
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    const row = this.closest(".editor-hint-row");
+    const index = row ? [...row.parentElement!.children].indexOf(row) : 0;
+    const top = index * 100;
+    return { x: 0, y: top, top, bottom: top + 80, left: 0, right: 500, width: 500, height: 80, toJSON: () => ({}) };
+  });
+  const onDraftChange = vi.fn();
+  render(<TaskHints readOnly={false} onDraftChange={onDraftChange} />);
+  for (const title of ["Hint 1", "Hint 2"]) {
+    fireEvent.click(screen.getByRole("button", { name: "Dodaj podpowied\u017a" }));
+    fireEvent.change(screen.getByLabelText("Tytu\u0142"), { target: { value: title } });
+    fireEvent.change(screen.getByLabelText("Tre\u015b\u0107 podpowiedzi"), { target: { value: "Think" } });
+    fireEvent.submit(screen.getByRole("form"));
+  }
+  const grip = await screen.findByRole("button", { name: "Przenieś podpowiedź Hint 1" });
+  fireEvent.keyDown(screen.getByText("Podpowiedź 1 · Hint 1", { selector: "strong" }), { code: "Space" });
+  expect(grip.getAttribute("aria-pressed")).not.toBe("true");
+  grip.focus(); fireEvent.keyDown(grip, { code: "Space" });
+  await waitFor(() => expect(grip.getAttribute("aria-pressed")).toBe("true"));
+  // KeyboardSensor attaches its document listeners after activation.
+  await new Promise(resolve => setTimeout(resolve, 0));
+  fireEvent.keyDown(document, { code: "ArrowDown" });
+  await waitFor(() => expect(screen.getByRole("status").textContent).toContain("over droppable area -2"));
+  fireEvent.keyDown(document, { code: "Space" });
+  expect(hintRequest).not.toHaveBeenCalled();
+  expect(onDraftChange.mock.lastCall?.[0].map((item: { title: string }) => item.title)).toEqual(["Hint 2", "Hint 1"]);
+  await waitFor(() => expect([...document.querySelectorAll(".editor-hint-row strong")].map(node => node.textContent)).toEqual(["Podpowiedź 1 · Hint 2", "Podpowiedź 2 · Hint 1"]));
+});

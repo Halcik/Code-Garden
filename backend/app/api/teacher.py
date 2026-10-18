@@ -60,7 +60,11 @@ def create_task(
     db: Session = Depends(get_db),
 ):
     response.headers["Cache-Control"] = "no-store"
-    task = Task(**payload.model_dump(), author_id=author.id)
+    task = Task(**payload.model_dump(exclude={"tests", "hints"}), author_id=author.id)
+    task.tests = [TaskTest(**item.model_dump(), position=position)
+                  for position, item in enumerate(payload.tests, 1)]
+    task.hints = [TaskHint(**item.model_dump(), position=position)
+                  for position, item in enumerate(payload.hints, 1)]
     db.add(task)
     db.commit()
     db.refresh(task)
