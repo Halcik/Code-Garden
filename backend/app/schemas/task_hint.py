@@ -32,3 +32,13 @@ class TaskHintResponse(TaskHintWrite):
 class TaskHintReorder(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     hint_ids: list[int]
+
+
+class StudentHintSummary(BaseModel):
+    total: int
+
+
+class StudentHintResponse(BaseModel):
+    number: int
+    title: str
+    content: str

@@ -13,15 +13,18 @@ type Props = {
   onChange: (value: string) => void;
   readOnly?: boolean;
   height?: string | number;
+  theme?: "light" | "dark";
+  ariaLabel?: string;
 };
 
-export default function PythonCodeEditor({ value, onChange, readOnly = false, height = 320 }: Props) {
-  const { theme } = useTheme();
+export default function PythonCodeEditor({ value, onChange, readOnly = false, height = 320, theme: themeOverride, ariaLabel = "Kod startowy Python" }: Props) {
+  const { theme: appTheme } = useTheme();
+  const theme = themeOverride ?? appTheme;
   return <Editor height={height} language="python" value={value}
     onChange={next => { if (!readOnly) onChange(next ?? ""); }}
     theme={theme === "dark" ? "vs-dark" : "light"}
     loading={<p role="status">Ładowanie edytora kodu…</p>}
-    options={{ readOnly, domReadOnly: readOnly, ariaLabel: "Kod startowy Python", lineNumbers: "on",
+    options={{ readOnly, domReadOnly: readOnly, ariaLabel, lineNumbers: "on",
       minimap: { enabled: false }, tabSize: 4, insertSpaces: true, automaticLayout: true,
       scrollBeyondLastLine: false, fontSize: 14 }} />;
 }

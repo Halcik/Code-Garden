@@ -1,17 +1,23 @@
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import require_role
 from app.db.session import get_db
-from app.models.task import Task, TaskDifficulty, TaskStatus, TaskType
+from app.models.task import Task, TaskDifficulty, TaskHint, TaskStatus, TaskType
 from app.models.user import UserRole
-from app.schemas.task import StudentTaskList
+from app.schemas.task import StudentTaskDetail, StudentTaskList
+from app.schemas.task_hint import StudentHintResponse, StudentHintSummary
 from app.services.task_catalog import task_filters, task_page
 
 router = APIRouter(prefix="/student", tags=["student tasks"],
                    dependencies=[Depends(require_role(UserRole.STUDENT))])
+
+
+def visible_student_tasks():
+    return [Task.status == TaskStatus.READY, Task.is_archived.is_(False)]
 
 
 @router.get("/tasks", response_model=StudentTaskList)
@@ -28,6 +34,38 @@ def list_student_tasks(
     db: Session = Depends(get_db),
 ):
     response.headers["Cache-Control"] = "no-store"
-    filters = [Task.status == TaskStatus.READY, Task.is_archived.is_(False)]
+    filters = visible_student_tasks()
     filters.extend(task_filters(search=search, topic=topic, difficulty=difficulty, task_type=task_type))
     return task_page(db, filters, sort_by=sort_by, sort_order=sort_order, limit=limit, offset=offset)
+
+
+@router.get("/tasks/{task_id}", response_model=StudentTaskDetail)
+def get_student_task(task_id: int, response: Response, db: Session = Depends(get_db)):
+    return available_student_task(db, task_id, response)
+
+
+def available_student_task(db: Session, task_id: int, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    task = db.scalar(select(Task).where(Task.id == task_id, *visible_student_tasks()))
+    if task is None:
+        raise HTTPException(404, "Task not found", headers={"Cache-Control": "no-store"})
+    return task
+
+
+@router.get("/tasks/{task_id}/hints", response_model=StudentHintSummary)
+def student_hint_summary(task_id: int, response: Response, db: Session = Depends(get_db)):
+    available_student_task(db, task_id, response)
+    return {"total": db.scalar(select(func.count()).select_from(TaskHint).where(TaskHint.task_id == task_id))}
+
+
+@router.get("/tasks/{task_id}/hints/{number}", response_model=StudentHintResponse)
+def get_student_hint(task_id: int, number: int, response: Response, db: Session = Depends(get_db)):
+    available_student_task(db, task_id, response)
+    if number < 1:
+        raise HTTPException(404, "Hint not found", headers={"Cache-Control": "no-store"})
+    # Select one hint by its ordinal in the teacher's current order (positions can have gaps).
+    hint = db.scalar(select(TaskHint).where(TaskHint.task_id == task_id)
+                     .order_by(TaskHint.position, TaskHint.id).offset(number - 1).limit(1))
+    if hint is None:
+        raise HTTPException(404, "Hint not found", headers={"Cache-Control": "no-store"})
+    return {"number": number, "title": hint.title, "content": hint.content}
