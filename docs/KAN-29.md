@@ -35,7 +35,7 @@ Makieta zawiera elementy z późniejszych etapów (status rozwiązywania, lekcje
 ## Weryfikacja
 
 - `npm run build`: OK (istniejące ostrzeżenie o rozmiarze bundla edytora Monaco).
-- `npm test -- --reporter=dot`: 11 plików, 139 testów zaliczonych. Nowe testy katalogu sprawdzają endpoint ucznia, routing, query params, empty/error i retry.
+- `npm test -- --reporter=dot`: 11 plików, 159 testów zaliczonych. Katalog ucznia ma 23 przypadki obejmujące endpoint i routing, loading/empty/error, debounce search/topic, przycinanie tekstu i zachowanie pozostałych filtrów, reset offsetu, obie granice paginacji, korektę offsetu po spadku total, 401/403 i odświeżanie sesji, abort przy zmianie filtrów i odmontowaniu, ignorowanie starych odpowiedzi i błędów, retry z zachowaniem zapytania, przełączanie widoków bez utraty filtrów i ponownego pobierania, reset filtrów z zachowaniem sekcji przypisań oraz nieaktywne zakładki postępu.
 - `backend/.venv/Scripts/python.exe -m pytest -q`: po uruchomieniu Dockera 196 testów zaliczonych, bez pominięć, w tym 17 nowych przypadków katalogu. Testy wykonano na osobnej bazie PostgreSQL `code_garden_kan29_test`, z `DATABASE_URL` i `TEST_DATABASE_URL` wskazującymi tę bazę.
 - `alembic check`: OK, brak rozbieżności między modelami a migracjami (`No new upgrade operations detected`).
 - Nowe testy backendu: `backend/tests/test_student_tasks.py`; testy UI: `frontend/src/pages/StudentTasksPage.test.tsx`.
