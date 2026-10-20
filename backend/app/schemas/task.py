@@ -46,6 +46,12 @@ class StudentTaskResponse(BaseModel):
     estimated_time_minutes: int | None
 
 
+class StudentTaskDetail(StudentTaskResponse):
+    theory: str | None
+    instructions: str | None
+    starter_code: str | None
+
+
 class StudentTaskList(BaseModel):
     items: list[StudentTaskResponse]
     total: int

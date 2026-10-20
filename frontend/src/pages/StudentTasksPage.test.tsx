@@ -2,13 +2,14 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { apiFetch } from "../api/client";
-import StudentTasksPage, { StudentTaskPlaceholder } from "./StudentTasksPage";
+import StudentTasksPage from "./StudentTasksPage";
+import StudentTaskPage from "./StudentTaskPage";
 
 vi.mock("../api/client", () => ({ apiFetch: vi.fn() }));
 vi.mock("../auth/AuthProvider", () => ({ useAuth: () => ({ retrySession }) }));
 const retrySession = vi.fn();
 const task = { id: 7, title: "Suma liczb", description: "Oblicz sumę", topic: "Listy", difficulty: "EASY", task_type: "STANDARD", estimated_time_minutes: 15 };
-function mount() { return render(<MemoryRouter initialEntries={["/student/tasks"]}><Routes><Route path="/student/tasks" element={<StudentTasksPage />} /><Route path="/student/tasks/:taskId" element={<StudentTaskPlaceholder />} /></Routes></MemoryRouter>); }
+function mount() { return render(<MemoryRouter initialEntries={["/student/tasks"]}><Routes><Route path="/student/tasks" element={<StudentTasksPage />} /><Route path="/student/tasks/:taskId" element={<StudentTaskPage />} /></Routes></MemoryRouter>); }
 function query(path: string) { return new URL(path, "http://localhost").searchParams; }
 function requests() { return vi.mocked(apiFetch).mock.calls.map(([path]) => query(path)); }
 function page(path: string, total = 49, items = [task]) {
@@ -34,13 +35,15 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
-it("uses the student API and routes to the KAN-30 placeholder", async () => {
-  vi.mocked(apiFetch).mockResolvedValue(Response.json({ items: [task], total: 1, limit: 24, offset: 0 }));
+it("uses the student API and opens task details from a catalog card", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => path.startsWith("/student/tasks?")
+    ? page(path, 1) : new Response(null, { status: 404 }));
   mount();
   expect(screen.getByRole("status").textContent).toContain("Ładowanie");
   fireEvent.click(await screen.findByRole("link", { name: "Suma liczb" }));
-  expect(screen.getByRole("heading", { name: "Szczegóły zadania" })).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "Zadanie niedostępne" })).toBeTruthy();
   expect(vi.mocked(apiFetch).mock.calls[0][0]).toMatch(/^\/student\/tasks\?/);
+  expect(vi.mocked(apiFetch).mock.calls[1][0]).toBe("/student/tasks/7");
 });
 
 it("sends search, filters and sort to the backend and handles empty results", async () => {

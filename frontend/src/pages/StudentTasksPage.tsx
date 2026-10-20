@@ -7,6 +7,7 @@ import { useAuth } from "../auth/AuthProvider";
 import DesignIcon from "../components/admin/DesignIcon";
 import ThemeSwitch from "../components/ThemeSwitch";
 import LogoutButton from "../components/LogoutButton";
+import TaskBadges from "../components/TaskBadges";
 import codeIcon from "../assets/student/code.svg";
 import clipboardIcon from "../assets/teacher/clipboard-list.svg";
 import "../styles/admin-users.css";
@@ -24,10 +25,6 @@ export function StudentLayout() {
     </aside>
     <div className="admin-application"><header className="admin-topbar"><span>Panel ucznia / Zadania</span><ThemeSwitch /></header><main className="admin-content"><Outlet /></main></div>
   </div>;
-}
-
-export function StudentTaskPlaceholder() {
-  return <section className="admin-card admin-state"><h1>Szczegóły zadania</h1><p>Ten widok będzie dostępny w kolejnym etapie.</p><Link className="admin-text-button" to="/student/tasks">Wróć do katalogu zadań</Link></section>;
 }
 
 export default function StudentTasksPage() {
@@ -93,7 +90,7 @@ export default function StudentTasksPage() {
         : <><div className="student-task-grid">{data.items.map(task => <article className="admin-card student-task-card" key={task.id}>
           <span className="student-topic-icon"><span aria-hidden="true" style={{ maskImage: `url("${codeIcon}")` }} /></span>
           <h2><Link to={`/student/tasks/${task.id}`}>{task.title}</Link></h2><p className="student-description">{task.description}</p>
-          <div className="student-chips"><span>{task.topic}</span><span>{DIFFICULTIES[task.difficulty]}</span><span>{TASK_TYPES[task.task_type]}</span></div>
+          <TaskBadges task={task} />
           <div className="student-card-footer"><span>{task.estimated_time_minutes == null ? "Czas nieokreślony" : `~${task.estimated_time_minutes} min`}</span><Link className="admin-button" to={`/student/tasks/${task.id}`}>Zobacz zadanie</Link></div>
         </article>)}</div><nav className="admin-pagination student-pagination" aria-label="Strony katalogu zadań"><button className="admin-button" disabled={data.offset === 0} onClick={() => setFilters(previous => ({ ...previous, offset: Math.max(0, previous.offset - data.limit) }))}>Poprzednia</button><span>{data.offset + 1}–{data.offset + data.items.length} z {data.total}</span><button className="admin-button" disabled={data.offset + data.limit >= data.total} onClick={() => setFilters(previous => ({ ...previous, offset: previous.offset + data.limit }))}>Następna</button></nav></>}
     </section>
