@@ -1,7 +1,7 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from pydantic import ValidationError
 
@@ -13,6 +13,7 @@ from app.schemas.task import TaskArchiveRequest, TaskCreate, TaskList, TaskRespo
 from app.schemas.task_test import TaskTestWrite, TaskTestPatch, TaskTestResponse, TaskTestReorder
 
 from app.schemas.task_hint import TaskHintWrite, TaskHintPatch, TaskHintResponse, TaskHintReorder
+from app.services.task_catalog import task_filters, task_page
 
 router = APIRouter(prefix="/teacher", tags=["teacher tasks"])
 
@@ -36,20 +37,10 @@ def list_tasks(
     filters = [Task.author_id == author.id]
     if archived is not None:
         filters.append(Task.is_archived == archived)
-    if difficulty is not None:
-        filters.append(Task.difficulty == difficulty)
+    filters.extend(task_filters(search=q, topic=topic, difficulty=difficulty))
     if status is not None:
         filters.append(Task.status == status)
-    if topic and topic.strip():
-        filters.append(func.lower(Task.topic) == topic.strip().lower())
-    if q and q.strip():
-        filters.append(Task.title.icontains(q.strip(), autoescape=True))
-    column = getattr(Task, sort_by)
-    ordering = column.asc() if sort_order == "asc" else column.desc()
-    total = db.scalar(select(func.count()).select_from(Task).where(*filters))
-    items = db.scalars(select(Task).where(*filters).order_by(ordering, Task.id.asc())
-                       .limit(limit).offset(offset)).all()
-    return {"items": items, "total": total, "limit": limit, "offset": offset}
+    return task_page(db, filters, sort_by=sort_by, sort_order=sort_order, limit=limit, offset=offset)
 
 
 @router.post("/tasks", response_model=TaskResponse, status_code=201, dependencies=[Depends(check_origin)])

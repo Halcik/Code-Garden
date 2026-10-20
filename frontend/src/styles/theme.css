@@ -18,6 +18,10 @@
   --color-error-surface: #fdeeee;
   --color-warning: #a15c12;
   --color-warning-surface: #fff5e5;
+  --color-catalog-accent: var(--color-accent);
+  --color-catalog-chip: #eef2f6;
+  --color-catalog-action: var(--color-surface);
+  --color-catalog-action-text: var(--color-accent);
 }
 
 :root[data-theme="dark"] {
@@ -40,4 +44,8 @@
   --color-error-surface: #42202a;
   --color-warning: #f8c56b;
   --color-warning-surface: #3c2a0d;
+  --color-catalog-accent: #22c55e;
+  --color-catalog-chip: #162033;
+  --color-catalog-action: #114834;
+  --color-catalog-action-text: var(--color-text);
 }

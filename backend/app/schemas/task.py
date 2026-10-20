@@ -34,6 +34,25 @@ class TaskList(BaseModel):
     offset: int
 
 
+class StudentTaskResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    description: str
+    topic: str
+    difficulty: TaskDifficulty
+    task_type: TaskType
+    estimated_time_minutes: int | None
+
+
+class StudentTaskList(BaseModel):
+    items: list[StudentTaskResponse]
+    total: int
+    limit: int
+    offset: int
+
+
 class TaskCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
 

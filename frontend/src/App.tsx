@@ -4,7 +4,7 @@ import { ThemeProvider } from "./theme/ThemeProvider";
 import "./styles/theme.css";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { ProtectedRoute, PublicRoute } from "./auth/RouteGuards";
-import RolePanel from "./pages/RolePanel";
+import StudentTasksPage, { StudentLayout, StudentTaskPlaceholder } from "./pages/StudentTasksPage";
 import AdminUsersPage from "./pages/AdminUsersPage";
 import TeacherTasksPage, { TeacherLayout } from "./pages/TeacherTasksPage";
 
@@ -22,7 +22,11 @@ export default function App() {
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Route>
             <Route element={<ProtectedRoute role="STUDENT" />}>
-              <Route path="/student" element={<RolePanel title="Panel ucznia" />} />
+              <Route path="/student" element={<StudentLayout />}>
+                <Route index element={<Navigate to="tasks" replace />} />
+                <Route path="tasks" element={<StudentTasksPage />} />
+                <Route path="tasks/:taskId" element={<StudentTaskPlaceholder />} />
+              </Route>
             </Route>
             <Route element={<ProtectedRoute role="TEACHER" />}>
               <Route path="/teacher" element={<TeacherLayout />}>
