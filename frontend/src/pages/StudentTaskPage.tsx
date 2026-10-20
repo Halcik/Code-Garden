@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getStudentTask } from "../api/studentTasks";
-import type { StudentTaskDetail } from "../api/studentTasks";
+import { getStudentTask, runStudentCode } from "../api/studentTasks";
+import type { RunResult, StudentTaskDetail } from "../api/studentTasks";
 import { TasksApiError } from "../api/tasks";
 import { useAuth } from "../auth/AuthProvider";
 import TaskBadges from "../components/TaskBadges";
@@ -13,7 +13,21 @@ const PythonCodeEditor = lazy(() => import("../components/PythonCodeEditor"));
 function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
   // The task owns the starter; only this mounted workspace owns the student's edits.
   const [studentCode, setStudentCode] = useState(() => task.starter_code ?? "");
-  return <div className="student-task-detail">
+  const [stdin, setStdin] = useState("");
+  const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState("");
+  const [result, setResult] = useState<RunResult | null>(null);
+  const { retrySession } = useAuth();
+  async function run() {
+    if (running) return;
+    setRunning(true); setRunError(""); setResult(null);
+    try { setResult(await runStudentCode(task.id, studentCode, stdin)); }
+    catch (reason) {
+      setRunError(reason instanceof Error ? reason.message : "Nie udało się uruchomić kodu.");
+      if (reason instanceof TasksApiError && [401, 403].includes(reason.status)) retrySession();
+    } finally { setRunning(false); }
+  }
+  return <div className="student-task-detail" data-run-status={result?.status}>
     <header className="student-task-header">
       <div className="student-task-identity">
         <nav className="student-task-breadcrumb" aria-label="Ścieżka zadania"><Link to="/student/tasks">Zadania</Link><span>/ {task.topic}</span></nav>
@@ -39,9 +53,11 @@ function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
           <Suspense fallback={<p className="admin-state" role="status">Ładowanie edytora kodu…</p>}><PythonCodeEditor value={studentCode} onChange={setStudentCode} readOnly={false} height={360} ariaLabel="Twój kod Python" /></Suspense>
         </div>
         <div className="student-run-controls">
-          <section className="admin-card student-input-card" aria-label="Dane wejściowe"><label htmlFor="student-stdin">Dane wejściowe</label><textarea id="student-stdin" disabled placeholder="Tutaj podasz dane wejściowe programu" /></section>
-          <div className="student-execution-actions"><button className="admin-button primary" disabled><span className="student-detail-icon" data-icon="play" aria-hidden="true" />Uruchom kod</button></div>
+          <section className="admin-card student-input-card" aria-label="Dane wejściowe"><label htmlFor="student-stdin">Dane wejściowe</label><textarea id="student-stdin" value={stdin} onChange={event => setStdin(event.target.value)} placeholder="Tutaj podasz dane wejściowe programu" /></section>
+          <div className="student-execution-actions"><button className="admin-button primary" disabled={running} onClick={run}><span className="student-detail-icon" data-icon="play" aria-hidden="true" />{running ? "Uruchamianie…" : "Uruchom kod"}</button></div>
         </div>
+        {running && <p role="status">Twój kod jest uruchamiany.</p>}
+        {runError && <p role="alert" className="error-message">{runError}</p>}
         <section className="admin-card student-material-card" aria-labelledby="student-tests-title"><h2 id="student-tests-title">Testy automatyczne</h2><p className="student-placeholder-copy">Po uruchomieniu kodu tutaj pojawią się wyniki testów automatycznych.</p></section>
       </section>
     </div>

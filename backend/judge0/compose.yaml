@@ -1,0 +1,41 @@
+name: code-garden-judge0
+x-engine: &engine
+  image: judge0/judge0:1.13.1
+  privileged: true
+  volumes:
+    - ./.env:/judge0.conf:ro
+  restart: unless-stopped
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+services:
+  server:
+    <<: *engine
+    ports:
+      - "127.0.0.1:2358:2358"
+  worker:
+    <<: *engine
+    command: ["./scripts/workers"]
+  db:
+    image: postgres:13.0
+    env_file: .env
+    volumes:
+      - judge0_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+  redis:
+    image: redis:6.0
+    env_file: .env
+    command: ["bash", "-c", 'docker-entrypoint.sh --appendonly no --requirepass "$$REDIS_PASSWORD"']
+    healthcheck:
+      test: ["CMD-SHELL", 'redis-cli -a "$$REDIS_PASSWORD" ping | grep PONG']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+volumes:
+  judge0_data:

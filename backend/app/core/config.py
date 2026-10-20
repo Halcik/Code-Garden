@@ -13,6 +13,18 @@ class Settings(BaseSettings):
     database_url: str
     jwt_secret: SecretStr
     jwt_expire_minutes: int = Field(default=30, ge=1, le=1440)
+    judge0_url: str = "http://localhost:2358"
+    judge0_python_languages: dict[str, int | None] = {"3.11": None, "3.12": None, "3.13": None, "3.14": None}
+    judge0_poll_interval_ms: int = Field(default=250, ge=1, le=5000)
+    judge0_max_wait_seconds: float = Field(default=5, gt=0, le=60)
+
+    @field_validator("judge0_python_languages")
+    @classmethod
+    def valid_languages(cls, value):
+        if any(language_id is not None and language_id <= 0 for language_id in value.values()):
+            raise ValueError("Judge0 language IDs must be positive")
+        return value
+
     cookie_secure: bool = False
     cookie_name: str = "access_token"
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]

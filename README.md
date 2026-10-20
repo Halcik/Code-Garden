@@ -117,3 +117,7 @@ Skrypt uruchomi bazę PostgreSQL, zastosuje migracje i uruchomi backend z automa
 przeładowaniem. `Ctrl+C` zatrzymuje backend; baza pozostaje uruchomiona w Dockerze.
 Instrukcje konfiguracji i migracji znajdują się w [backend/README.md](backend/README.md).
 Konfiguracja API frontendu, opis flow i ręczny test end-to-end są w [frontend/README.md](frontend/README.md).
+
+## Uruchamianie kodu Python (KAN-32)
+
+Konfiguracja Dockera, wersji Pythona i test ręczny: [docs/KAN-32.md](docs/KAN-32.md).

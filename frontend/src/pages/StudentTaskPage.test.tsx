@@ -225,13 +225,13 @@ it("aborts a pending detail request on unmount", async () => {
 
 it("does not execute, save, submit or reveal hints when disabled controls are clicked", async () => {
   mount(); await screen.findByRole("textbox", { name: "Twój kod Python" });
-  for (const name of ["Zapisz wersję roboczą", "Wyślij rozwiązanie", "Uruchom kod"]) {
+  for (const name of ["Zapisz wersję roboczą", "Wyślij rozwiązanie"]) {
     const button = screen.getByRole("button", { name }) as HTMLButtonElement;
     expect(button.disabled).toBe(true); fireEvent.click(button);
   }
   expect(apiFetch).toHaveBeenCalledOnce();
   const input = screen.getByRole("textbox", { name: "Dane wejściowe" }) as HTMLTextAreaElement;
-  expect(input.disabled).toBe(true);
+  expect(input.disabled).toBe(false);
   expect(input.value).toBe("");
   expect(await screen.findByText("Do tego zadania nie dodano podpowiedzi.")).toBeTruthy();
   expect(screen.getByText("Tutaj pojawi się komentarz nauczyciela do Twojego rozwiązania.")).toBeTruthy();
@@ -242,4 +242,21 @@ it.each([["TEACHER", "Panel nauczyciela"], ["ADMIN", "Panel administratora"]])("
   auth.role = role; mount();
   expect(await screen.findByText(heading)).toBeTruthy();
   expect(apiFetch).not.toHaveBeenCalled();
+});
+
+it("runs current code and stdin, blocks duplicate clicks and permits retry after infrastructure error", async () => {
+  mount(); await screen.findByRole("textbox", { name: "Twój kod Python" });
+  fireEvent.change(code(), { target: { value: "print(input())" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Dane wejściowe" }), { target: { value: "hello" } });
+  const pending = deferred(); vi.mocked(apiFetch).mockReturnValueOnce(pending.promise);
+  fireEvent.click(screen.getByRole("button", { name: "Uruchom kod" }));
+  expect((screen.getByRole("button", { name: "Uruchamianie…" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText("Twój kod jest uruchamiany.")).toBeTruthy();
+  expect(apiFetch).toHaveBeenLastCalledWith("/student/tasks/7/run", expect.objectContaining({ body: JSON.stringify({ source_code: "print(input())", stdin: "hello" }) }));
+  await act(async () => pending.resolve(Response.json({}, { status: 503 })));
+  expect(await screen.findByRole("alert")).toBeTruthy();
+  expect((screen.getByRole("button", { name: "Uruchom kod" }) as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Uruchom kod" }));
+  await act(async () => {});
+  expect(screen.queryByText("Twój kod jest uruchamiany.")).toBeNull();
 });

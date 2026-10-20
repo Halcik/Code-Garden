@@ -6,6 +6,7 @@ export const DIFFICULTIES = { EASY: "Łatwy", MEDIUM: "Średni", HARD: "Trudny" 
 export const STATUSES = { DRAFT: "Wersja robocza", READY: "Gotowe" } as const;
 export const TASK_TYPES = { STANDARD: "Standardowe", FUNCTION: "Funkcyjne", STRUCTURAL: "Strukturalne" } as const;
 export type Task = {
+  python_version: string; time_limit_seconds: number; memory_limit_mb: number;
   id: number; title: string; description: string; topic: string;
   theory: string | null; instructions: string | null; starter_code: string | null;
   difficulty: keyof typeof DIFFICULTIES; status: keyof typeof STATUSES;
@@ -37,7 +38,7 @@ export async function listTasks(filters: TaskFilters, signal: AbortSignal, limit
 }
 
 
-export type TaskInput = Pick<Task, "title" | "topic" | "description" | "theory" | "instructions" | "starter_code" | "difficulty" | "task_type" | "status" | "estimated_time_minutes">;
+export type TaskInput = Pick<Task, "python_version" | "time_limit_seconds" | "memory_limit_mb" | "title" | "topic" | "description" | "theory" | "instructions" | "starter_code" | "difficulty" | "task_type" | "status" | "estimated_time_minutes">;
 
 async function taskRequest(path: string, options?: RequestInit): Promise<Task> {
   const response = await apiFetch(path, { ...options, headers: { "Content-Type": "application/json", ...options?.headers } });
@@ -57,3 +58,9 @@ export const updateTask = (id: string, data: Partial<TaskInput>) => taskRequest(
 
 export const archiveTask = (id: number) => taskRequest(`/teacher/tasks/${id}/archive`, { method: "PATCH" });
 export const restoreTask = (id: number | string) => taskRequest(`/teacher/tasks/${id}/restore`, { method: "PATCH" });
+
+export async function getExecutionEnvironments(signal: AbortSignal): Promise<string[]> {
+  const response = await apiFetch("/teacher/execution-environments", { signal });
+  if (!response.ok) throw new TasksApiError("Nie udało się pobrać środowisk wykonania.", response.status);
+  return response.json();
+}
