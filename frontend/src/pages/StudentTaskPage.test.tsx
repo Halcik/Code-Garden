@@ -230,8 +230,9 @@ it("does not execute, save, submit or reveal hints when disabled controls are cl
     expect(button.disabled).toBe(true); fireEvent.click(button);
   }
   expect(apiFetch).toHaveBeenCalledOnce();
-  expect((screen.getByLabelText("Dane wejściowe") as HTMLTextAreaElement).disabled).toBe(true);
-  expect((screen.getByLabelText("Dane wejściowe") as HTMLTextAreaElement).value).toBe("");
+  const input = screen.getByRole("textbox", { name: "Dane wejściowe" }) as HTMLTextAreaElement;
+  expect(input.disabled).toBe(true);
+  expect(input.value).toBe("");
   expect(await screen.findByText("Do tego zadania nie dodano podpowiedzi.")).toBeTruthy();
   expect(screen.getByText("Tutaj pojawi się komentarz nauczyciela do Twojego rozwiązania.")).toBeTruthy();
   expect(monacoRender.mock.calls.at(-1)?.[0]).toMatchObject({ language: "python", options: { readOnly: false, minimap: { enabled: false }, lineNumbers: "on", tabSize: 4, insertSpaces: true, automaticLayout: true, scrollBeyondLastLine: false } });
