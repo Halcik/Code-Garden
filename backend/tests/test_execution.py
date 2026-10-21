@@ -65,7 +65,7 @@ def test_cannot_override_settings(extra):
 
 
 @pytest.mark.parametrize("mode,code", [("unavailable",503), ("http_timeout",503), ("no_token",502), ("invalid",502), ("missing_language",503), ("wrong_version",503), ("poll_timeout",504), ("internal",502)])
-def test_infrastructure_failures(mode, code):
+def test_infrastructure_failures(mode, code, monkeypatch):
     def handler(request):
         if mode == "unavailable":
             return httpx.Response(503)
@@ -78,9 +78,52 @@ def test_infrastructure_failures(mode, code):
         if request.method == "POST":
             return httpx.Response(201, json={} if mode == "no_token" else {"token": "abc"})
         return httpx.Response(200, json={"status": {"id": 13 if mode == "internal" else 1}})
+    service = Judge0Service(settings(judge0_max_wait_seconds=.03), httpx.MockTransport(handler))
+    if mode == "poll_timeout":
+        # Keep the real cancellation/polling test fast; production deadlines have
+        # a task-derived lower bound, covered independently below.
+        monkeypatch.setattr(service, "execution_deadline", lambda cpu: .03)
     with pytest.raises(Judge0Error) as error:
-        run(Judge0Service(settings(judge0_max_wait_seconds=.03), httpx.MockTransport(handler)))
+        run(service)
     assert error.value.status_code == code
+
+
+@pytest.mark.parametrize("cpu,configured,wall,deadline", [
+    (2, 5, 5, 10), (10, 5, 13, 18), (15, 5, 18, 23), (15, 40, 18, 40),
+])
+def test_deadline_covers_task_wall_time_and_all_http_operations(cpu, configured, wall, deadline, monkeypatch):
+    from contextlib import asynccontextmanager
+    active = False
+    timeout_values = []
+    calls = []
+    @asynccontextmanager
+    async def timeout_scope(seconds):
+        nonlocal active
+        timeout_values.append(seconds)
+        active = True
+        try:
+            yield
+        finally:
+            active = False
+    monkeypatch.setattr(asyncio, "timeout", timeout_scope)
+    def handler(request):
+        assert active, "The total deadline must include language discovery, POST and polling"
+        calls.append(request.url.path)
+        assert request.extensions["timeout"]["read"] == configured
+        if request.url.path == "/languages":
+            return httpx.Response(200, json=[{"id": 13, "name": "Python 3.13 (CPython 3.13.17)"}])
+        if request.method == "POST":
+            payload = json.loads(request.content)
+            assert payload["cpu_time_limit"] == cpu
+            assert payload["wall_time_limit"] == wall
+            return httpx.Response(201, json={"token": "abc"})
+        return httpx.Response(200, json={"status": {"id": 3}, "stdout": "b2sK", "exit_code": 0})
+    service = Judge0Service(settings(judge0_max_wait_seconds=configured), httpx.MockTransport(handler))
+    result = asyncio.run(service.run_code(source_code="print('ok')", stdin="", python_version="3.13",
+                                          time_limit_seconds=cpu, memory_limit_mb=256))
+    assert result.stdout == "ok\n"
+    assert timeout_values == [deadline]
+    assert calls == ["/languages", "/submissions", "/submissions/abc"]
 
 
 def test_unconfigured_version():

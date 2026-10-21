@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     judge0_url: str = "http://localhost:2358"
     judge0_python_languages: dict[str, int | None] = {"3.11": None, "3.12": None, "3.13": None, "3.14": None}
     judge0_poll_interval_ms: int = Field(default=250, ge=1, le=5000)
-    judge0_max_wait_seconds: float = Field(default=5, gt=0, le=60)
+    # Configured total-wait baseline; the service raises it to task wall time + margin.
+    judge0_max_wait_seconds: float = Field(default=5, gt=0, le=60, allow_inf_nan=False)
 
     @field_validator("judge0_python_languages")
     @classmethod

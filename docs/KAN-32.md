@@ -176,8 +176,14 @@ pozostają opcjami konfiguracji zadań, ale nie mogą zostać wykonane.
 
 Task: domyślnie 3.13, 2 s CPU, 256 MB. Walidacja: 0 < CPU <= 15 s,
 1 <= pamięć <= 512 MB. Wall time = max(5, CPU + 3) s; sieć wyłączona.
-Globalny deadline (domyślnie 5 s) obejmuje HTTP i polling; przy dłuższych zadaniach
-administrator może zwiększyć `JUDGE0_MAX_WAIT_SECONDS` (maks. 60 s).
+Globalny deadline obejmuje `/languages`, utworzenie submission i polling.
+Jest obliczany automatycznie jako `max(JUDGE0_MAX_WAIT_SECONDS, wall_time_limit + 5 s)`.
+Przy domyślnym env 5 s daje to 10 s oczekiwania dla zadania z 2 s CPU,
+18 s dla 10 s CPU i 23 s dla maksymalnego limitu 15 s CPU. Margines obejmuje
+kolejkę, HTTP i odstępy pollingu; bardzo długa kolejka nadal może wyczerpać deadline.
+Administrator może zwiększyć bazowy `JUDGE0_MAX_WAIT_SECONDS` (maks. 60 s),
+ale obniżenie go nie skróci całego oczekiwania poniżej wall time + margines.
+Timeout pojedynczego requestu HTTP pozostaje równy `JUDGE0_MAX_WAIT_SECONDS`.
 Przekroczenie deadline nie oznacza błędu programu i nie anuluje już zakolejkowanego run.
 
 ## Uruchomienie aplikacji

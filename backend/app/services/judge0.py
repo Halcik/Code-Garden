@@ -21,6 +21,14 @@ class Judge0Service:
         self.settings = settings
         self.transport = transport
 
+    @staticmethod
+    def wall_time_limit(cpu: float) -> float:
+        return max(5, cpu + 3)
+
+    def execution_deadline(self, cpu: float) -> float:
+        # Allow Judge0's full wall time plus bounded queue/HTTP/polling overhead.
+        return max(self.settings.judge0_max_wait_seconds, self.wall_time_limit(cpu) + 5)
+
     async def request(self, client, method, path, **kwargs):
         try:
             response = await client.request(method, path, **kwargs)
@@ -40,7 +48,7 @@ class Judge0Service:
             "source_code": base64.b64encode(source_code.encode()).decode(),
             "stdin": base64.b64encode(stdin.encode()).decode(),
             "language_id": language_id, "cpu_time_limit": cpu,
-            "memory_limit": memory * 1024, "wall_time_limit": max(5, cpu + 3),
+            "memory_limit": memory * 1024, "wall_time_limit": self.wall_time_limit(cpu),
             "enable_network": False,
         })
         token = result.get("token") if isinstance(result, dict) else None
@@ -56,7 +64,7 @@ class Judge0Service:
         if language_id is None:
             raise Judge0Error(503, "Python environment is not configured in Judge0")
         try:
-            async with asyncio.timeout(self.settings.judge0_max_wait_seconds):
+            async with asyncio.timeout(self.execution_deadline(time_limit_seconds)):
                 async with httpx.AsyncClient(base_url=self.settings.judge0_url, transport=self.transport, timeout=self.settings.judge0_max_wait_seconds) as client:
                     languages = await self.request(client, "GET", "/languages")
                     if not isinstance(languages, list) or any(not isinstance(item, dict) for item in languages):
