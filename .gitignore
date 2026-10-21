@@ -19,3 +19,4 @@ dist/
 # System
 .DS_Store
 Thumbs.db
+backend/judge0/*.log

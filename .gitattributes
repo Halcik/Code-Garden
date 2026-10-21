@@ -1,0 +1,4 @@
+backend/judge0/*.sh text eol=lf
+backend/judge0/*.rb text eol=lf
+backend/judge0/Dockerfile text eol=lf
+backend/judge0/.env.example text eol=lf

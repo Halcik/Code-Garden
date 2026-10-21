@@ -88,7 +88,7 @@ it("loads detail through the student API, shows all material and initializes an 
   expect(screen.getByText("Po uruchomieniu kodu tutaj pojawią się wyniki testów automatycznych.")).toBeTruthy();
   expect(screen.getByLabelText("Kategoria zadania: Napisy").textContent).toBe("Napisy");
   expect(screen.getByLabelText("Kategoria zadania: Napisy").textContent).not.toBe(task.title);
-  expect(screen.queryByText("Wynik")).toBeNull();
+  expect(screen.getByRole("region", { name: "Wynik" })).toBeTruthy();
 });
 
 it("keeps student edits through rerenders and both theme changes without writes", async () => {
@@ -259,4 +259,22 @@ it("runs current code and stdin, blocks duplicate clicks and permits retry after
   fireEvent.click(screen.getByRole("button", { name: "Uruchom kod" }));
   await act(async () => {});
   expect(screen.queryByText("Twój kod jest uruchamiany.")).toBeNull();
+});
+
+it("shows stdout as plain text with whitespace, clears it on rerun and handles empty output", async () => {
+  mount(); await screen.findByRole("textbox", { name: "Twój kod Python" });
+  expect(screen.getByText("Uruchom kod, aby zobaczyć wynik programu.")).toBeTruthy();
+  const stdout = "hello\n  <script>example</script>\n";
+  vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({ status: "completed", stdout, stderr: null, exit_code: 0, time: 0.01, memory: 8192 }));
+  fireEvent.click(screen.getByRole("button", { name: "Uruchom kod" }));
+  await screen.findByText("hello <script>example</script>");
+  const output = screen.getByRole("region", { name: "Wynik" });
+  expect(output.querySelector("pre")?.textContent).toBe(stdout);
+  expect(output.querySelector("script")).toBeNull();
+  const pending = deferred(); vi.mocked(apiFetch).mockReturnValueOnce(pending.promise);
+  fireEvent.click(screen.getByRole("button", { name: "Uruchom kod" }));
+  expect(output.querySelector("pre")).toBeNull();
+  expect(screen.getByText("Oczekiwanie na wynik…")).toBeTruthy();
+  await act(async () => pending.resolve(Response.json({ status: "completed", stdout: null, stderr: null, exit_code: 0, time: 0.01, memory: 8192 })));
+  expect(await screen.findByText("Program nie wypisał nic na standardowe wyjście.")).toBeTruthy();
 });

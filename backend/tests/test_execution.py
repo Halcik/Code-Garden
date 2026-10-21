@@ -89,6 +89,28 @@ def test_unconfigured_version():
     assert error.value.status_code == 503
 
 
+@pytest.mark.parametrize("invalid", [False, True])
+def test_judge0_ruby_base64_line_wrapping(invalid):
+    text = "hello\n" * 30
+    def handler(request):
+        if request.url.path == "/languages":
+            return httpx.Response(200, json=[{"id": 13, "name": "Python 3.13 (CPython 3.13.17)"}])
+        if request.method == "POST":
+            return httpx.Response(201, json={"token": "abc"})
+        encoded = base64.encodebytes(text.encode()).decode().replace("\n", "\r\n")
+        return httpx.Response(200, json={"status": {"id": 3}, "stdout": encoded + ("!" if invalid else ""),
+                                       "stderr": "ZXJyb3IK\n", "exit_code": 0})
+    service = Judge0Service(settings(), httpx.MockTransport(handler))
+    if invalid:
+        with pytest.raises(Judge0Error) as error:
+            run(service)
+        assert error.value.status_code == 502
+    else:
+        result = run(service)
+        assert result.stdout == text
+        assert result.stderr == "error\n"
+
+
 @pytest.fixture
 def endpoint():
     from app.main import app

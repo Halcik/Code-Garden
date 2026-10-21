@@ -74,7 +74,14 @@ class Judge0Service:
                             if status in (13, 14):
                                 raise Judge0Error(502, "Judge0 could not execute the program")
                             def decode(value):
-                                return None if value is None else base64.b64decode(value, validate=True).decode("utf-8", errors="replace")
+                                if value is None:
+                                    return None
+                                if not isinstance(value, str):
+                                    raise ValueError("Invalid encoded output")
+                                # Judge0 CE uses Ruby Base64.encode64, which wraps
+                                # lines and appends LF. Keep strict alphabet checks.
+                                encoded = value.replace("\r", "").replace("\n", "")
+                                return base64.b64decode(encoded, validate=True).decode("utf-8", errors="replace")
                             return RunResponse(status="completed" if status == 3 else "time_limit_exceeded" if status == 5 else "execution_error",
                                 stdout=decode(result.get("stdout")), stderr=decode(result.get("stderr") or result.get("compile_output")),
                                 exit_code=result.get("exit_code"), time=result.get("time"), memory=result.get("memory"))

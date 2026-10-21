@@ -54,10 +54,21 @@ function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
         </div>
         <div className="student-run-controls">
           <section className="admin-card student-input-card" aria-label="Dane wejściowe"><label htmlFor="student-stdin">Dane wejściowe</label><textarea id="student-stdin" value={stdin} onChange={event => setStdin(event.target.value)} placeholder="Tutaj podasz dane wejściowe programu" /></section>
-          <div className="student-execution-actions"><button className="admin-button primary" disabled={running} onClick={run}><span className="student-detail-icon" data-icon="play" aria-hidden="true" />{running ? "Uruchamianie…" : "Uruchom kod"}</button></div>
+          <div className="student-execution-actions">
+            <button className="admin-button primary" disabled={running} onClick={run}><span className="student-detail-icon" data-icon="play" aria-hidden="true" />{running ? "Uruchamianie…" : "Uruchom kod"}</button>
+            {running && <p className="student-run-status" role="status">Twój kod jest uruchamiany.</p>}
+          </div>
         </div>
-        {running && <p role="status">Twój kod jest uruchamiany.</p>}
         {runError && <p role="alert" className="error-message">{runError}</p>}
+        <section className="student-output-panel" aria-labelledby="student-output-title" aria-busy={running}>
+          <header className="student-output-header"><h2 id="student-output-title">Wynik</h2><span>stdout</span></header>
+          <div className="student-output-content" aria-live="polite">
+            {result?.stdout ? <pre>{result.stdout}</pre>
+              : <p className="student-placeholder-copy">{running ? "Oczekiwanie na wynik…"
+                : result ? "Program nie wypisał nic na standardowe wyjście."
+                : "Uruchom kod, aby zobaczyć wynik programu."}</p>}
+          </div>
+        </section>
         <section className="admin-card student-material-card" aria-labelledby="student-tests-title"><h2 id="student-tests-title">Testy automatyczne</h2><p className="student-placeholder-copy">Po uruchomieniu kodu tutaj pojawią się wyniki testów automatycznych.</p></section>
       </section>
     </div>

@@ -120,4 +120,7 @@ Konfiguracja API frontendu, opis flow i ręczny test end-to-end są w [frontend/
 
 ## Uruchamianie kodu Python (KAN-32)
 
-Konfiguracja Dockera, wersji Pythona i test ręczny: [docs/KAN-32.md](docs/KAN-32.md).
+Własny obraz Judge0 CE 1.13.1 zawiera cztery środowiska CPython 3.11–3.14
+(domyślnie zadania używają 3.13), również dla Docker Desktop/WSL2 z cgroups v2.
+Build, start, wykrywanie rzeczywistych ID języków i smoke test przez sandbox:
+[docs/KAN-32.md](docs/KAN-32.md).
