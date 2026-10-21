@@ -16,6 +16,9 @@ class TaskResponse(BaseModel):
     theory: str | None
     instructions: str | None
     starter_code: str | None
+    python_version: str
+    time_limit_seconds: float
+    memory_limit_mb: int
     topic: str
     difficulty: TaskDifficulty
     task_type: TaskType
@@ -65,6 +68,18 @@ class TaskCreate(BaseModel):
     tests: list[TaskTestWrite] = Field(default_factory=list)
     hints: list[TaskHintWrite] = Field(default_factory=list)
 
+    python_version: str = "3.13"
+    time_limit_seconds: float = Field(default=2, gt=0, le=15, allow_inf_nan=False)
+    memory_limit_mb: int = Field(default=256, gt=0, le=512)
+
+    @field_validator("python_version")
+    @classmethod
+    def supported_python(cls, value):
+        from app.core.config import get_settings
+        if value not in get_settings().judge0_python_languages:
+            raise ValueError("Unsupported Python version")
+        return value
+
     title: str = Field(min_length=1, max_length=200)
     topic: str = Field(min_length=1, max_length=100)
     difficulty: TaskDifficulty
@@ -91,6 +106,11 @@ class TaskCreate(BaseModel):
 
 class TaskUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
+
+    python_version: str | None = None
+    time_limit_seconds: float | None = Field(default=None, gt=0, le=15, allow_inf_nan=False)
+    memory_limit_mb: int | None = Field(default=None, gt=0, le=512)
+    supported_python = field_validator("python_version")(TaskCreate.supported_python.__func__)
 
     title: str | None = Field(default=None, min_length=1, max_length=200)
     topic: str | None = Field(default=None, min_length=1, max_length=100)

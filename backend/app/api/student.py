@@ -4,8 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import require_role
+from app.api.dependencies import check_origin, require_role
 from app.db.session import get_db
+from app.core.config import get_settings
+from app.schemas.execution import RunRequest, RunResponse
+from app.services.judge0 import Judge0Service, Judge0Error
 from app.models.task import Task, TaskDifficulty, TaskHint, TaskStatus, TaskType
 from app.models.user import UserRole
 from app.schemas.task import StudentTaskDetail, StudentTaskList
@@ -69,3 +72,19 @@ def get_student_hint(task_id: int, number: int, response: Response, db: Session 
     if hint is None:
         raise HTTPException(404, "Hint not found", headers={"Cache-Control": "no-store"})
     return {"number": number, "title": hint.title, "content": hint.content}
+
+
+def get_judge0_service():
+    return Judge0Service(get_settings())
+
+
+@router.post("/tasks/{task_id}/run", response_model=RunResponse, dependencies=[Depends(check_origin)])
+async def run_student_code(task_id: int, payload: RunRequest, response: Response,
+                           db: Session = Depends(get_db), service: Judge0Service = Depends(get_judge0_service)):
+    task = available_student_task(db, task_id, response)
+    try:
+        return await service.run_code(source_code=payload.source_code, stdin=payload.stdin,
+                                      python_version=task.python_version, time_limit_seconds=task.time_limit_seconds,
+                                      memory_limit_mb=task.memory_limit_mb)
+    except Judge0Error as exc:
+        raise HTTPException(exc.status_code, exc.message, headers={"Cache-Control": "no-store"}) from None

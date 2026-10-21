@@ -4,6 +4,7 @@
     "dev": "node scripts/start-dev.cjs",
     "dev:frontend": "npm --prefix frontend run dev",
     "dev:backend": "node scripts/start-backend.cjs",
+    "dev:judge0": "node scripts/start-judge0.cjs",
     "setup": "npm --prefix frontend install"
   }
 }

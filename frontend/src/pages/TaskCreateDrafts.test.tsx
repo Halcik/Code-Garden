@@ -69,3 +69,8 @@ it("prevents creation from silently discarding an unfinished child form", async 
   expect(await screen.findByRole("alert")).toBeTruthy(); expect(apiFetch).not.toHaveBeenCalled();
   expect(screen.getByRole("form", { name: "Nowa podpowiedź" })).toBeTruthy();
 });
+
+vi.mock("../api/tasks", async importOriginal => ({
+  ...await importOriginal<typeof import("../api/tasks")>(),
+  getExecutionEnvironments: async () => ["3.11", "3.12", "3.13", "3.14"],
+}));

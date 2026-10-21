@@ -2,7 +2,7 @@ import enum
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum, ForeignKey, Float, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -30,6 +30,8 @@ class TaskStatus(str, enum.Enum):
 class Task(Base):
     __tablename__ = "tasks"
     __table_args__ = (
+        CheckConstraint("time_limit_seconds > 0 AND time_limit_seconds <= 15", name="ck_tasks_cpu_limit"),
+        CheckConstraint("memory_limit_mb > 0 AND memory_limit_mb <= 512", name="ck_tasks_memory_limit"),
         CheckConstraint("estimated_time_minutes > 0", name="ck_tasks_positive_time"),
         CheckConstraint("length(trim(title)) > 0", name="ck_tasks_title"),
         CheckConstraint("length(trim(topic)) > 0", name="ck_tasks_topic"),
@@ -41,6 +43,9 @@ class Task(Base):
     theory: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     starter_code: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    python_version: Mapped[str] = mapped_column(String(20), nullable=False, default="3.13", server_default="3.13")
+    time_limit_seconds: Mapped[float] = mapped_column(Float, nullable=False, default=2, server_default="2")
+    memory_limit_mb: Mapped[int] = mapped_column(Integer, nullable=False, default=256, server_default="256")
     topic: Mapped[str] = mapped_column(String(100), nullable=False)
     difficulty: Mapped[TaskDifficulty] = mapped_column(Enum(TaskDifficulty, name="task_difficulty"), nullable=False)
     task_type: Mapped[TaskType] = mapped_column(Enum(TaskType, name="task_type"), nullable=False)

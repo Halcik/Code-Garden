@@ -1,0 +1,22 @@
+[
+  {
+    "series": "3.11",
+    "version": "3.11.17",
+    "sha256": "bfb74ad39efae27cda510f134ab408e00f9992c56851cfc0b1cdb5646da11599"
+  },
+  {
+    "series": "3.12",
+    "version": "3.12.15",
+    "sha256": "c2c4321961fab0fb999d66e0cecf521c2ab3994c7992873ea99e306c1094fd5a"
+  },
+  {
+    "series": "3.13",
+    "version": "3.13.17",
+    "sha256": "6020bd10aff3bf4821be16f088ebb1591beb7b811dcd8fab1da8f7c22a7b27e7"
+  },
+  {
+    "series": "3.14",
+    "version": "3.14.9",
+    "sha256": "e02d9ac21cebda6e46435369744a92c65cc7cd8669697694122cf97ffacd1e53"
+  }
+]

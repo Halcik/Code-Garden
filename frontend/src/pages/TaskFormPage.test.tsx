@@ -36,7 +36,7 @@ it("creates a task, trims fields and returns to the list", async () => {
   expect(await screen.findByText("Lista zadań")).toBeTruthy();
   const [path, options] = vi.mocked(apiFetch).mock.calls[0];
   expect(path).toBe("/teacher/tasks"); expect(options?.method).toBe("POST");
-  expect(JSON.parse(options!.body as string)).toEqual({ title: "Nowe zadanie", topic: "Python", description: "", theory: "", instructions: "", starter_code: "", difficulty: "EASY", task_type: "STANDARD", status: "DRAFT", estimated_time_minutes: null, tests: [], hints: [] });
+  expect(JSON.parse(options!.body as string)).toEqual({ python_version: "3.13", time_limit_seconds: 2, memory_limit_mb: 256, title: "Nowe zadanie", topic: "Python", description: "", theory: "", instructions: "", starter_code: "", difficulty: "EASY", task_type: "STANDARD", status: "DRAFT", estimated_time_minutes: null, tests: [], hints: [] });
 });
 it("validates required fields, whitespace and positive integer time", () => {
   open(); fireEvent.click(screen.getByRole("button", { name: "Utwórz zadanie" }));
@@ -81,12 +81,12 @@ it.each(["light", "dark"])("shows all Figma editor placeholders in %s mode witho
   open(); fill();
   expect(screen.getByRole("region", { name: "Przypadki testowe" })).toBeTruthy();
   expect(screen.getByRole("region", { name: "Podpowiedzi" })).toBeTruthy();
-  for (const name of ["Ustawienia wykonania", "Gotowość zadania", "Publikacja"])
+  for (const name of ["Gotowość zadania", "Publikacja"])
     expect(screen.getByRole("region", { name: `${name} — placeholder` })).toBeTruthy();
   expect((screen.getByLabelText("Krótka teoria") as HTMLTextAreaElement).disabled).toBe(false);
   expect((screen.getByLabelText("Treść zadania") as HTMLTextAreaElement).disabled).toBe(false);
   expect(screen.queryByRole("button", { name: "Archiwizuj zadanie" })).toBeNull();
-  for (const name of ["Podgląd", "Dodaj podpowiedź", "Edytuj limity", "Wyślij do recenzji publicznej"])
+  for (const name of ["Podgląd", "Dodaj podpowiedź", "Wyślij do recenzji publicznej"])
     expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
   for (const button of screen.getAllByRole("button", { name: "Przetestuj zadanie" })) {
     expect((button as HTMLButtonElement).disabled).toBe(true); fireEvent.click(button);
@@ -95,7 +95,7 @@ it.each(["light", "dark"])("shows all Figma editor placeholders in %s mode witho
   fireEvent.click(screen.getByRole("button", { name: "Utwórz zadanie" }));
   await screen.findByText("Lista zadań");
   const payload = JSON.parse(vi.mocked(apiFetch).mock.calls[0][1]!.body as string);
-  expect(Object.keys(payload).sort()).toEqual(["description", "difficulty", "estimated_time_minutes", "hints", "instructions", "starter_code", "status", "task_type", "tests", "theory", "title", "topic"]);
+  expect(Object.keys(payload).sort()).toEqual(["description", "difficulty", "estimated_time_minutes", "hints", "instructions", "memory_limit_mb", "python_version", "starter_code", "status", "task_type", "tests", "theory", "time_limit_seconds", "title", "topic"]);
 });
 
 it("opens archived tasks read-only and restores before enabling editing", async () => {
@@ -241,4 +241,24 @@ it("locks content while saving and preserves it after a failed PATCH for retry",
   expect(JSON.parse(vi.mocked(apiFetch).mock.calls[2][1]!.body as string)).toEqual({
     description: "New summary", theory: "New theory", instructions: "New instructions", starter_code: "    pass\n",
   });
+});
+
+vi.mock("../api/tasks", async importOriginal => ({
+  ...await importOriginal<typeof import("../api/tasks")>(),
+  getExecutionEnvironments: async () => ["3.11", "3.12", "3.13", "3.14"],
+}));
+
+it("persists execution settings and restores saved values", async () => {
+  vi.mocked(apiFetch).mockImplementation(async () => Response.json({ ...task, python_version: "3.12", time_limit_seconds: 4.5, memory_limit_mb: 128 }));
+  open(true); await screen.findByLabelText("Środowisko");
+  expect((screen.getByLabelText("Środowisko") as HTMLSelectElement).value).toBe("3.12");
+  expect((screen.getByLabelText("Limit czasu (s)") as HTMLInputElement).value).toBe("4.5");
+  expect((screen.getByLabelText("Limit pamięci (MB)") as HTMLInputElement).value).toBe("128");
+  for (const version of ["3.11", "3.12", "3.13", "3.14"]) expect(screen.getByRole("option", { name: `Python ${version}` })).toBeTruthy();
+  fireEvent.change(screen.getByLabelText("Środowisko"), { target: { value: "3.14" } });
+  fireEvent.change(screen.getByLabelText("Limit czasu (s)"), { target: { value: "3" } });
+  fireEvent.change(screen.getByLabelText("Limit pamięci (MB)"), { target: { value: "256" } });
+  fireEvent.click(screen.getByRole("button", { name: "Zapisz zmiany" }));
+  await screen.findByText("Zmiany zostały zapisane.");
+  expect(JSON.parse(vi.mocked(apiFetch).mock.lastCall![1]!.body as string)).toEqual({ python_version: "3.14", time_limit_seconds: 3, memory_limit_mb: 256 });
 });
