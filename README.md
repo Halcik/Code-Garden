@@ -99,12 +99,17 @@ npm run dev
 
 `npm install` instaluje wszystkie zależności zapisane w `package.json`, w tym React, TypeScript i Vite. Nie trzeba instalować ich globalnie. Wykonaj tę komendę przy pierwszym uruchomieniu oraz po zmianach zależności.
 
-`npm run dev` uruchamia bazę, stosuje migracje i uruchamia frontend oraz backend
+`npm run dev` uruchamia bazę, stosuje migracje, przygotowuje obraz i kontenery Judge0,
+a następnie uruchamia frontend oraz backend
 w jednym terminalu. Otwórz `http://localhost:5173`; API działa na `http://localhost:8000`.
-`Ctrl+C` zatrzymuje oba serwery, a baza pozostaje uruchomiona w Dockerze.
+`Ctrl+C` zatrzymuje oba serwery, a baza i Judge0 pozostają uruchomione w Dockerze.
 Jeśli jeden serwer zakończy działanie, drugi również zostanie zatrzymany.
 
 Możesz też uruchamiać serwery osobno: `npm run dev:frontend` i `npm run dev:backend`.
+Sam Judge0 uruchomisz przez `npm run dev:judge0`. Docker Desktop musi być włączony.
+Pierwszy build obrazu może potrwać kilka–kilkanaście minut; kolejne korzystają z cache.
+Przy pierwszej konfiguracji wykonaj smoke test zapisujący ID do `backend/.env`
+zgodnie z [KAN-32](docs/KAN-32.md); skrypt startowy nie nadpisuje mapowania środowisk.
 
 Po jednorazowym przygotowaniu `backend/.venv` i `backend/.env` włącz Docker Desktop
 i aby uruchomić sam backend, z głównego katalogu projektu wykonaj:

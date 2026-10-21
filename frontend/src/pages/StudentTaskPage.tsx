@@ -56,7 +56,6 @@ function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
           <section className="admin-card student-input-card" aria-label="Dane wejściowe"><label htmlFor="student-stdin">Dane wejściowe</label><textarea id="student-stdin" value={stdin} onChange={event => setStdin(event.target.value)} placeholder="Tutaj podasz dane wejściowe programu" /></section>
           <div className="student-execution-actions">
             <button className="admin-button primary" disabled={running} onClick={run}><span className="student-detail-icon" data-icon="play" aria-hidden="true" />{running ? "Uruchamianie…" : "Uruchom kod"}</button>
-            {running && <p className="student-run-status" role="status">Twój kod jest uruchamiany.</p>}
           </div>
         </div>
         {runError && <p role="alert" className="error-message">{runError}</p>}

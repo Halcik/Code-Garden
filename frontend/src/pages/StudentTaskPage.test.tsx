@@ -251,14 +251,14 @@ it("runs current code and stdin, blocks duplicate clicks and permits retry after
   const pending = deferred(); vi.mocked(apiFetch).mockReturnValueOnce(pending.promise);
   fireEvent.click(screen.getByRole("button", { name: "Uruchom kod" }));
   expect((screen.getByRole("button", { name: "Uruchamianie…" }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByText("Twój kod jest uruchamiany.")).toBeTruthy();
+  expect(screen.getByText("Oczekiwanie na wynik…")).toBeTruthy();
   expect(apiFetch).toHaveBeenLastCalledWith("/student/tasks/7/run", expect.objectContaining({ body: JSON.stringify({ source_code: "print(input())", stdin: "hello" }) }));
   await act(async () => pending.resolve(Response.json({}, { status: 503 })));
   expect(await screen.findByRole("alert")).toBeTruthy();
   expect((screen.getByRole("button", { name: "Uruchom kod" }) as HTMLButtonElement).disabled).toBe(false);
   fireEvent.click(screen.getByRole("button", { name: "Uruchom kod" }));
   await act(async () => {});
-  expect(screen.queryByText("Twój kod jest uruchamiany.")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Uruchamianie…" })).toBeNull();
 });
 
 it("shows stdout as plain text with whitespace, clears it on rerun and handles empty output", async () => {

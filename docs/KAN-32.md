@@ -74,6 +74,17 @@ Przypięcie wersji zapewnia powtarzalne wejścia builda, nie identyczność bina
 
 ## Build i start — PowerShell z katalogu głównego repo
 
+Do codziennej pracy wystarczy `npm run dev`: po bazie i migracjach przygotowuje
+Judge0, czeka na gotowość kontenerów i uruchamia backend oraz frontend.
+`npm run dev:judge0` wykonuje samo przygotowanie/start Judge0. Skrypt tworzy jego
+`.env` tylko, gdy plik nie istnieje, i buduje obraz z użyciem cache. Nie wykonuje
+smoke testów ani nie zmienia `JUDGE0_PYTHON_LANGUAGES` przy każdym starcie.
+Pierwsza konfiguracja mapowania nadal wymaga poniższego smoke testu.
+`Ctrl+C` dla `npm run dev` zatrzymuje serwery aplikacji; kontenery pozostają w tle.
+Przed przygotowaniem Dockera skrypt sprawdza porty 5173 i 8000 (IPv4/IPv6).
+Jeśli poprzednia aplikacja nadal działa, druga próba kończy się od razu czytelnym
+komunikatem. Docker nie uruchamia automatycznie frontendu Vite ani backendu FastAPI.
+
 Po przygotowaniu istniejącego `backend/.venv` zgodnie z README:
 
 ```powershell
@@ -237,6 +248,7 @@ zapisem po nieudanym smoke i inicjalizację konfiguracji z LF bez nadpisywania h
 
 Rozszerzenie obrazu CPython/WSL2:
 
+- `package.json`, `scripts/start-dev.cjs`, `scripts/start-backend.cjs`, `scripts/start-judge0.cjs` — wspólny start developerski
 - `.gitattributes`, `.gitignore`
 - `backend/judge0/Dockerfile`, `backend/judge0/.dockerignore`
 - `backend/judge0/versions.json`, `backend/judge0/build-python.sh`
