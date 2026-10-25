@@ -1,0 +1,12 @@
+*
+!Dockerfile
+!versions.json
+!build-python.sh
+!register-languages.rb
+!seeds.rb
+!healthcheck.rb
+!build-isolate.sh
+!isolate-compat.sh
+!isolate-v2.conf
+!setup-cgroups.sh
+!entrypoint.sh

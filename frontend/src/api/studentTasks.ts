@@ -26,3 +26,13 @@ export async function listStudentTasks(filters: CatalogFilters, signal: AbortSig
     : "Nie udało się pobrać zadań. Spróbuj ponownie.", response.status);
   return response.json();
 }
+
+export type RunResult = { status: "completed" | "execution_error" | "time_limit_exceeded"; stdout: string | null; stderr: string | null; exit_code: number | null; time: number | null; memory: number | null };
+export async function runStudentCode(id: number, source_code: string, stdin: string): Promise<RunResult> {
+  const response = await apiFetch(`/student/tasks/${id}/run`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_code, stdin }),
+  });
+  if (!response.ok) throw new TasksApiError(response.status === 422 ? "Kod i dane wejściowe mogą mieć maksymalnie po 100 KB."
+    : "Nie udało się uruchomić kodu. Spróbuj ponownie.", response.status);
+  return response.json();
+}

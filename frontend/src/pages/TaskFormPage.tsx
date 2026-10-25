@@ -3,7 +3,7 @@ import TaskTests from "../components/teacher/TaskTests";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { createTask, getTask, updateTask, archiveTask, restoreTask, DIFFICULTIES, STATUSES, TASK_TYPES, TasksApiError } from "../api/tasks";
+import { getExecutionEnvironments, createTask, getTask, updateTask, archiveTask, restoreTask, DIFFICULTIES, STATUSES, TASK_TYPES, TasksApiError } from "../api/tasks";
 import type { TaskInput } from "../api/tasks";
 import type { TestInput } from "../api/taskTests";
 import type { HintInput } from "../api/taskHints";
@@ -14,13 +14,15 @@ import EditorIcon from "../components/teacher/EditorIcon";
 import { PlaceholderButton, ReviewRule, TaskSettingsPlaceholders } from "../components/teacher/TaskEditorPlaceholders";
 import "../styles/task-editor.css";
 
-const emptyForm = { title: "", topic: "", description: "", theory: "", instructions: "", starter_code: "", difficulty: "", task_type: "", status: "DRAFT", estimated_time_minutes: "" };
+const emptyForm = { python_version: "3.13", time_limit_seconds: "2", memory_limit_mb: "256", title: "", topic: "", description: "", theory: "", instructions: "", starter_code: "", difficulty: "", task_type: "", status: "DRAFT", estimated_time_minutes: "" };
 type Form = typeof emptyForm;
 export default function TaskFormPage() {
   const { taskId } = useParams();
   const navigate = useNavigate();
   const { retrySession } = useAuth();
   const [form, setForm] = useState<Form>(emptyForm);
+  const [environments, setEnvironments] = useState<string[]>([]);
+  const [environmentError, setEnvironmentError] = useState("");
   const [original, setOriginal] = useState<TaskInput | null>(null);
   const [loading, setLoading] = useState(Boolean(taskId));
   const [loadError, setLoadError] = useState("");
@@ -42,6 +44,14 @@ export default function TaskFormPage() {
   }
   useEffect(() => {
     const controller = new AbortController();
+    setEnvironmentError("");
+    getExecutionEnvironments(controller.signal).then(versions => { if (!controller.signal.aborted) setEnvironments(versions); }).catch(reason => {
+      if (!controller.signal.aborted) setEnvironmentError(message(reason));
+    });
+    return () => controller.abort();
+  }, [attempt, retrySession]);
+  useEffect(() => {
+    const controller = new AbortController();
     generation.current += 1;
     setError(""); setLoadError(""); setSuccess(""); setOriginal(null); setForm(emptyForm); setArchived(false);
     setDraftTests([]); setDraftHints([]); setEditingTest(false); setEditingHint(false);
@@ -50,9 +60,9 @@ export default function TaskFormPage() {
     getTask(taskId, controller.signal).then(task => {
       if (controller.signal.aborted) return;
       setArchived(task.is_archived);
-      const data: TaskInput = { title: task.title, topic: task.topic, description: task.description, theory: task.theory ?? "", instructions: task.instructions ?? "", starter_code: task.starter_code ?? "", difficulty: task.difficulty,
+      const data: TaskInput = { python_version: task.python_version ?? "3.13", time_limit_seconds: task.time_limit_seconds ?? 2, memory_limit_mb: task.memory_limit_mb ?? 256, title: task.title, topic: task.topic, description: task.description, theory: task.theory ?? "", instructions: task.instructions ?? "", starter_code: task.starter_code ?? "", difficulty: task.difficulty,
         task_type: task.task_type, status: task.status, estimated_time_minutes: task.estimated_time_minutes };
-      setOriginal(data); setForm({ ...data, theory: data.theory ?? "", instructions: data.instructions ?? "", starter_code: data.starter_code ?? "", estimated_time_minutes: data.estimated_time_minutes?.toString() ?? "" });
+      setOriginal(data); setForm({ ...data, time_limit_seconds: String(data.time_limit_seconds), memory_limit_mb: String(data.memory_limit_mb), theory: data.theory ?? "", instructions: data.instructions ?? "", starter_code: data.starter_code ?? "", estimated_time_minutes: data.estimated_time_minutes?.toString() ?? "" });
     }).catch(reason => { if (!controller.signal.aborted) setLoadError(message(reason)); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => { controller.abort(); generation.current += 1; };
@@ -65,6 +75,10 @@ export default function TaskFormPage() {
     if (!taskId && (editingTest || editingHint)) {
       setError("Zapisz lub anuluj otwarty formularz testu albo podpowiedzi przed utworzeniem zadania."); return;
     }
+    const cpu = Number(form.time_limit_seconds), memory = Number(form.memory_limit_mb);
+    if (!Number.isFinite(cpu) || cpu <= 0 || cpu > 15 || !Number.isInteger(memory) || memory <= 0 || memory > 512) {
+      setError("Limit czasu: ponad 0 do 15 s. Limit pamięci: od 1 do 512 MB."); return;
+    }
     const minutes = form.estimated_time_minutes === "" ? null : Number(form.estimated_time_minutes);
     if (form.status === "READY" && !form.instructions.trim()) {
       setError("Gotowe zadanie musi zawierać polecenie."); return;
@@ -73,7 +87,7 @@ export default function TaskFormPage() {
       (minutes !== null && (!Number.isInteger(minutes) || minutes <= 0 || minutes > 2147483647))) {
       setError("Uzupełnij tytuł, temat, poziom i typ zadania. Czas musi być dodatnią liczbą całkowitą."); return;
     }
-    const data: TaskInput = { ...form, title: form.title.trim(), topic: form.topic.trim(), description: form.description.trim(),
+    const data: TaskInput = { ...form, time_limit_seconds: cpu, memory_limit_mb: memory, title: form.title.trim(), topic: form.topic.trim(), description: form.description.trim(),
       difficulty: form.difficulty as TaskInput["difficulty"], task_type: form.task_type as TaskInput["task_type"],
       status: form.status as TaskInput["status"], estimated_time_minutes: minutes };
     const patch = Object.fromEntries(Object.entries(data).filter(([key, value]) => value !== original?.[key as keyof TaskInput]));
@@ -85,7 +99,7 @@ export default function TaskFormPage() {
       else await createTask({ ...data, tests: draftTests, hints: draftHints });
       if (current !== generation.current) return;
       if (!taskId) navigate("/teacher/tasks", { state: { taskSaved: true } });
-      else { setOriginal(data); setForm({ ...data, theory: data.theory ?? "", instructions: data.instructions ?? "", starter_code: data.starter_code ?? "", estimated_time_minutes: minutes?.toString() ?? "" }); setSuccess("Zmiany zostały zapisane."); }
+      else { setOriginal(data); setForm({ ...data, time_limit_seconds: String(data.time_limit_seconds), memory_limit_mb: String(data.memory_limit_mb), theory: data.theory ?? "", instructions: data.instructions ?? "", starter_code: data.starter_code ?? "", estimated_time_minutes: minutes?.toString() ?? "" }); setSuccess("Zmiany zostały zapisane."); }
     } catch (reason) { if (current === generation.current) setError(message(reason)); }
     finally { locked.current = false; setSaving(false); }
   }
@@ -165,7 +179,18 @@ export default function TaskFormPage() {
             <TaskTests key={taskId || "new"} taskId={taskId} readOnly={saving || archived} onDraftChange={setDraftTests} onEditingChange={setEditingTest} />
             <TaskHints key={`hints-${taskId || "new"}`} taskId={taskId} readOnly={saving || archived} onDraftChange={setDraftHints} onEditingChange={setEditingHint} />
           </div>
-          <aside className="editor-settings-column" aria-label="Ustawienia zadania"><TaskSettingsPlaceholders onArchive={taskId && !archived ? archive : undefined} busy={saving} archiving={archiving} /></aside>
+          <aside className="editor-settings-column" aria-label="Ustawienia zadania"><TaskSettingsPlaceholders execution={<section className="admin-card editor-card" aria-label="Ustawienia wykonania">
+            <h2>Ustawienia wykonania</h2>
+            {environmentError && <p role="alert">{environmentError}<button type="button" onClick={() => setAttempt(value => value + 1)}>Spróbuj ponownie</button></p>}
+            <fieldset disabled={saving || archived}>
+              <label>Środowisko<select form="task-basics-form" value={form.python_version} onChange={event => change("python_version", event.target.value)}>
+                {!environments.includes(form.python_version) && <option value={form.python_version}>Python {form.python_version}</option>}
+                {environments.map(version => <option key={version} value={version}>Python {version}</option>)}
+              </select></label>
+              <label>Limit czasu (s)<input form="task-basics-form" type="number" min="0.01" max="15" step="0.01" value={form.time_limit_seconds} onChange={event => change("time_limit_seconds", event.target.value)} /></label>
+              <label>Limit pamięci (MB)<input form="task-basics-form" type="number" min="1" max="512" step="1" value={form.memory_limit_mb} onChange={event => change("memory_limit_mb", event.target.value)} /></label>
+            </fieldset>
+          </section>} onArchive={taskId && !archived ? archive : undefined} busy={saving} archiving={archiving} /></aside>
         </div>
       </>}
   </div>;

@@ -18,6 +18,12 @@ from app.services.task_catalog import task_filters, task_page
 router = APIRouter(prefix="/teacher", tags=["teacher tasks"])
 
 
+@router.get("/execution-environments", response_model=list[str])
+def execution_environments(author: User = Depends(require_role(UserRole.TEACHER))):
+    from app.core.config import get_settings
+    return list(get_settings().judge0_python_languages)
+
+
 @router.get("/tasks", response_model=TaskList)
 def list_tasks(
     response: Response,

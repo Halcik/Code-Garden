@@ -2,6 +2,8 @@ const { existsSync } = require("node:fs");
 const path = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 const { prepareBackend, backend, python, backendArgs } = require("./start-backend.cjs");
+const { prepareJudge0 } = require("./start-judge0.cjs");
+const { checkDevPorts } = require("./check-dev-ports.cjs");
 
 const frontend = path.resolve(__dirname, "../frontend");
 const vite = path.join(frontend, "node_modules/vite/bin/vite.js");
@@ -9,7 +11,6 @@ if (!existsSync(vite)) {
   console.error("Najpierw zainstaluj frontend: npm run setup");
   process.exit(1);
 }
-prepareBackend();
 
 const children = [];
 let stopping = false;
@@ -46,7 +47,17 @@ function start(command, args, cwd) {
   child.on("exit", (code) => stop(code ?? 1));
 }
 
-console.log("Frontend: http://localhost:5173 | Backend: http://localhost:8000");
-console.log("Ctrl+C zatrzymuje oba serwery. Baza pozostaje uruchomiona.");
-start(python, backendArgs, backend);
-start(process.execPath, [vite, "--host", "localhost", "--port", "5173", "--strictPort"], frontend);
+async function main() {
+  await checkDevPorts();
+  prepareBackend();
+  prepareJudge0();
+  console.log("Frontend: http://localhost:5173 | Backend: http://localhost:8000");
+  console.log("Ctrl+C zatrzymuje oba serwery. Baza i Judge0 pozostaja uruchomione.");
+  start(python, backendArgs, backend);
+  start(process.execPath, [vite, "--host", "localhost", "--port", "5173", "--strictPort"], frontend);
+}
+
+main().catch((error) => {
+  console.error(error.message);
+  stop(1);
+});
