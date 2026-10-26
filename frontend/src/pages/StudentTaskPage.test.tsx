@@ -1,9 +1,10 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+﻿import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
 import { apiFetch } from "../api/client";
 import { getHintSummary, getStudentHint } from "../api/studentHints";
 import StudentTaskPage from "./StudentTaskPage";
+import { friendlyMessages, fallbackMessage } from "../utils/pythonError";
 import StudentTasksPage from "./StudentTasksPage";
 import { ProtectedRoute } from "../auth/RouteGuards";
 
@@ -88,7 +89,7 @@ it("loads detail through the student API, shows all material and initializes an 
   expect(screen.getByText("Po uruchomieniu kodu tutaj pojawią się wyniki testów automatycznych.")).toBeTruthy();
   expect(screen.getByLabelText("Kategoria zadania: Napisy").textContent).toBe("Napisy");
   expect(screen.getByLabelText("Kategoria zadania: Napisy").textContent).not.toBe(task.title);
-  expect(screen.getByRole("region", { name: "Wynik" })).toBeTruthy();
+  expect(screen.getByRole("region", { name: "Wynik uruchomienia" })).toBeTruthy();
 });
 
 it("keeps student edits through rerenders and both theme changes without writes", async () => {
@@ -251,6 +252,8 @@ it("runs current code and stdin, blocks duplicate clicks and permits retry after
   const pending = deferred(); vi.mocked(apiFetch).mockReturnValueOnce(pending.promise);
   fireEvent.click(screen.getByRole("button", { name: "Uruchom kod" }));
   expect((screen.getByRole("button", { name: "Uruchamianie…" }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Uruchamianie…" }));
+  expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => path.endsWith("/run"))).toHaveLength(1);
   expect(screen.getByText("Oczekiwanie na wynik…")).toBeTruthy();
   expect(apiFetch).toHaveBeenLastCalledWith("/student/tasks/7/run", expect.objectContaining({ body: JSON.stringify({ source_code: "print(input())", stdin: "hello" }) }));
   await act(async () => pending.resolve(Response.json({}, { status: 503 })));
@@ -268,7 +271,7 @@ it("shows stdout as plain text with whitespace, clears it on rerun and handles e
   vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({ status: "completed", stdout, stderr: null, exit_code: 0, time: 0.01, memory: 8192 }));
   fireEvent.click(screen.getByRole("button", { name: "Uruchom kod" }));
   await screen.findByText("hello <script>example</script>");
-  const output = screen.getByRole("region", { name: "Wynik" });
+  const output = screen.getByRole("region", { name: "Wynik uruchomienia" });
   expect(output.querySelector("pre")?.textContent).toBe(stdout);
   expect(output.querySelector("script")).toBeNull();
   const pending = deferred(); vi.mocked(apiFetch).mockReturnValueOnce(pending.promise);
@@ -277,4 +280,70 @@ it("shows stdout as plain text with whitespace, clears it on rerun and handles e
   expect(screen.getByText("Oczekiwanie na wynik…")).toBeTruthy();
   await act(async () => pending.resolve(Response.json({ status: "completed", stdout: null, stderr: null, exit_code: 0, time: 0.01, memory: 8192 })));
   expect(await screen.findByText("Program nie wypisał nic na standardowe wyjście.")).toBeTruthy();
+});
+
+it.each([...Object.keys(friendlyMessages), "CustomProblem"])("shows %s with explanation and full original error alongside stdout", async type => {
+  mount(); await screen.findByRole("textbox", { name: "Twój kod Python" });
+  const stderr = `Traceback (most recent call last):\n  File "script.py", line 7, in <module>\n    bad()\n${type}: problem <script>alert(1)</script>\n`;
+  vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({ status: "execution_error", stdout: "before error\n", stderr, time: 0, memory: 0, exit_code: 1 }));
+  fireEvent.click(screen.getByRole("button", { name: "Uruchom kod" }));
+  expect(await screen.findByText(`Błąd: ${type}`)).toBeTruthy();
+  expect(screen.getByText("Błąd w linii: 7")).toBeTruthy();
+  expect(screen.getByText(friendlyMessages[type] ?? fallbackMessage)).toBeTruthy();
+  const output = screen.getByRole("region", { name: "Wynik uruchomienia" });
+  expect([...output.querySelectorAll("pre")].map(pre => pre.textContent)).toEqual(["before error\n", stderr]);
+  expect(output.querySelector("script")).toBeNull();
+  expect(screen.getByText("Czas: 0 s")).toBeTruthy();
+  expect(screen.getByText("Pamięć: 0 KB")).toBeTruthy();
+});
+
+it.each(["Ostrzeżenie: dodatkowa informacja\n  <script>example</script>\n", "ValueError: świadomie wypisany tekst\n"])("keeps completed stderr diagnostic without classifying it as a failure: %s", async stderr => {
+  mount(); await screen.findByRole("textbox", { name: "Twój kod Python" });
+  vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({ status: "completed", stdout: "ok\n", stderr, exit_code: 0 }));
+  fireEvent.click(screen.getByRole("button", { name: "Uruchom kod" }));
+  expect(await screen.findByText("Zakończono poprawnie")).toBeTruthy();
+  expect(screen.getByLabelText("Wyjście programu").textContent).toBe("ok\n");
+  expect(screen.getByLabelText("Diagnostyka programu").textContent).toBe(stderr);
+  expect(screen.queryByRole("region", { name: "Błąd programu" })).toBeNull();
+  expect(screen.queryByText("Wyjaśnienie")).toBeNull();
+  expect(screen.queryByText(fallbackMessage)).toBeNull();
+  expect(screen.queryByText(friendlyMessages.ValueError)).toBeNull();
+  expect(screen.queryByText(/Błąd w linii:/)).toBeNull();
+  const output = screen.getByRole("region", { name: "Wynik uruchomienia" });
+  expect(output.querySelector("script")).toBeNull();
+  expect(output.querySelector(".execution-stderr-label")).toBeNull();
+});
+
+it("shows an error without a line number", async () => {
+  mount(); await screen.findByRole("textbox", { name: "Twój kod Python" });
+  vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({ status: "execution_error", stderr: "ValueError: bad" }));
+  fireEvent.click(screen.getByRole("button", { name: "Uruchom kod" }));
+  await screen.findByText("Błąd: ValueError");
+  expect(screen.queryByText(/Błąd w linii:/)).toBeNull();
+});
+
+it("presents a program timeout as a result and keeps partial stdout", async () => {
+  mount(); await screen.findByRole("textbox", { name: "Twój kod Python" });
+  vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({ status: "time_limit_exceeded", stdout: "partial", stderr: "diagnostyka przed zatrzymaniem" }));
+  fireEvent.click(screen.getByRole("button", { name: "Uruchom kod" }));
+  expect(await screen.findByText(/Program przekroczył dozwolony czas/)).toBeTruthy();
+  expect(screen.getByText("partial")).toBeTruthy();
+  expect(screen.getByLabelText("Diagnostyka programu").textContent).toBe("diagnostyka przed zatrzymaniem");
+  expect(screen.queryByRole("region", { name: "Błąd programu" })).toBeNull();
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it.each([503, 504, 500])("handles HTTP %s with a safe message and enables another run", async status => {
+  mount(); await screen.findByRole("textbox", { name: "Twój kod Python" });
+  vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({ detail: "SECRET BACKEND TRACE" }, { status }));
+  fireEvent.click(screen.getByRole("button", { name: "Uruchom kod" }));
+  const alert = await screen.findByRole("alert");
+  if (status === 504) expect(alert.textContent).toContain("czas oczekiwania na odpowiedź usługi");
+  if (status === 503) expect(alert.textContent).toContain("niedostępna");
+  expect(screen.queryByText(/SECRET/)).toBeNull();
+  expect((screen.getByRole("button", { name: "Uruchom kod" }) as HTMLButtonElement).disabled).toBe(false);
+  vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({ status: "completed", stdout: "recovered" }));
+  fireEvent.click(screen.getByRole("button", { name: "Uruchom kod" }));
+  expect(await screen.findByText("recovered")).toBeTruthy();
+  expect(screen.queryByRole("alert")).toBeNull();
 });

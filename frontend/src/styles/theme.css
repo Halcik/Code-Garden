@@ -25,8 +25,8 @@
   --shadow-student-material: 0 2px 10px rgb(21 32 51 / 4%);
   --color-hint-surface: var(--color-warning-surface);
   --color-hint-text: var(--color-warning);
-  --color-hint-button-surface: var(--color-surface);
-  --color-hint-button-border: var(--color-input-border);
+  --color-hint-button-surface: #d8f0e3;
+  --color-hint-button-border: #78b894;
 }
 
 :root[data-theme="dark"] {

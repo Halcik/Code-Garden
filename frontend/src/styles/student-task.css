@@ -30,7 +30,7 @@
 .student-output-header h2 { margin: 0; color: var(--color-catalog-accent); font-size: 13px; font-weight: 700; }
 .student-output-header span { color: var(--color-text-muted); font-size: 13px; }
 .student-output-content { min-height: 80px; max-height: 320px; overflow: auto; padding: 16px; }
-.student-output-content pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--color-text); font: 12px/20px ui-monospace, Consolas, monospace; }
+.student-output-content pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--color-text); font: 14px/22px ui-monospace, Consolas, monospace; }
 .student-teacher-comment { background: var(--color-brand-surface); }
 .student-teacher-comment h2 { color: var(--color-catalog-accent); }
 .student-revealed-hint { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 8px; background: var(--color-hint-surface); }
@@ -39,6 +39,8 @@
 .student-hint-heading > span { font-size: 11px; color: var(--color-hint-text); }
 .student-revealed-hint p { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 13px; }
 .student-hint-button { align-self: flex-start; color: var(--color-catalog-action-text); background: var(--color-hint-button-surface); border-color: var(--color-hint-button-border); }
+:root:not([data-theme="dark"]) .student-hint-button { color: #145c3d; }
+:root:not([data-theme="dark"]) .student-hint-button:hover:not(:disabled) { background: #c5e7d5; border-color: #4c946d; }
 .student-detail-icon[data-icon="lightbulb"] { mask-image: url("../assets/student/lightbulb.svg"); }
 .student-detail-icon { display: inline-block; width: 15px; height: 15px; flex-shrink: 0; background: currentColor; mask-repeat: no-repeat; mask-size: contain; mask-position: center; }
 .student-detail-icon[data-icon="save"] { mask-image: url("../assets/student/save.svg"); }
@@ -48,3 +50,26 @@
 @media (max-width: 1100px) { .student-task-workspace { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); } .student-task-header { align-items: start; flex-direction: column; } }
 @media (max-width: 800px) { .student-task-workspace { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 450px) { .student-run-controls { flex-direction: column; } .student-input-card { width: 100%; } .student-execution-actions { max-width: none; } }
+
+.student-output-content h3 { margin: 0 0 10px; font-size: 14px; }
+.student-output-header { flex-wrap: wrap; gap: 12px 20px; padding-block: 10px; }
+.student-output-content { display: flex; flex-direction: column; gap: 12px; }
+.execution-error { display: flex; flex-direction: column; gap: 12px; }
+.student-output-content .execution-traceback, .student-output-header .execution-stderr-label { color: var(--color-error); }
+.execution-explanation { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border-radius: 8px; background: var(--color-error-surface); color: var(--color-text); font-size: 13px; line-height: 1.5; }
+.execution-explanation img { flex: 0 0 16px; margin-top: 2px; }
+.execution-explanation p { margin: 0; }
+.execution-explanation .execution-line-number { margin-bottom: 4px; font-weight: 600; }
+.student-output-header .execution-state { padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+.student-output-header .execution-state.is-error { color: var(--color-error); background: var(--color-error-surface); }
+.student-output-header .execution-state.is-success { color: var(--color-success); background: var(--color-brand-surface); }
+.execution-metrics { display: inline-flex; flex-wrap: wrap; gap: 8px; }
+.student-output-header .execution-metrics span { font: 11px/1.5 ui-monospace, Consolas, monospace; }
+.execution-accessible-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+:root:not([data-theme="dark"]) .student-output-panel { --color-error: #8f1d17; }
+:root:not([data-theme="dark"]) .student-output-header > span,
+:root:not([data-theme="dark"]) .student-output-header .execution-metrics span { color: var(--color-text-secondary); }
+:root:not([data-theme="dark"]) .student-output-header .execution-stderr-label,
+:root:not([data-theme="dark"]) .student-output-header .execution-state.is-error { color: var(--color-error); }
+:root:not([data-theme="dark"]) .execution-explanation { color: #7a271a; }
+:root:not([data-theme="dark"]) .execution-explanation img { filter: brightness(0.55); }
