@@ -297,6 +297,23 @@ it.each([...Object.keys(friendlyMessages), "CustomProblem"])("shows %s with expl
   expect(screen.getByText("Pamięć: 0 KB")).toBeTruthy();
 });
 
+it.each(["Ostrzeżenie: dodatkowa informacja\n  <script>example</script>\n", "ValueError: świadomie wypisany tekst\n"])("keeps completed stderr diagnostic without classifying it as a failure: %s", async stderr => {
+  mount(); await screen.findByRole("textbox", { name: "Twój kod Python" });
+  vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({ status: "completed", stdout: "ok\n", stderr, exit_code: 0 }));
+  fireEvent.click(screen.getByRole("button", { name: "Uruchom kod" }));
+  expect(await screen.findByText("Zakończono poprawnie")).toBeTruthy();
+  expect(screen.getByLabelText("Wyjście programu").textContent).toBe("ok\n");
+  expect(screen.getByLabelText("Diagnostyka programu").textContent).toBe(stderr);
+  expect(screen.queryByRole("region", { name: "Błąd programu" })).toBeNull();
+  expect(screen.queryByText("Wyjaśnienie")).toBeNull();
+  expect(screen.queryByText(fallbackMessage)).toBeNull();
+  expect(screen.queryByText(friendlyMessages.ValueError)).toBeNull();
+  expect(screen.queryByText(/Błąd w linii:/)).toBeNull();
+  const output = screen.getByRole("region", { name: "Wynik uruchomienia" });
+  expect(output.querySelector("script")).toBeNull();
+  expect(output.querySelector(".execution-stderr-label")).toBeNull();
+});
+
 it("shows an error without a line number", async () => {
   mount(); await screen.findByRole("textbox", { name: "Twój kod Python" });
   vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({ status: "execution_error", stderr: "ValueError: bad" }));
@@ -307,10 +324,12 @@ it("shows an error without a line number", async () => {
 
 it("presents a program timeout as a result and keeps partial stdout", async () => {
   mount(); await screen.findByRole("textbox", { name: "Twój kod Python" });
-  vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({ status: "time_limit_exceeded", stdout: "partial" }));
+  vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({ status: "time_limit_exceeded", stdout: "partial", stderr: "diagnostyka przed zatrzymaniem" }));
   fireEvent.click(screen.getByRole("button", { name: "Uruchom kod" }));
   expect(await screen.findByText(/Program przekroczył dozwolony czas/)).toBeTruthy();
   expect(screen.getByText("partial")).toBeTruthy();
+  expect(screen.getByLabelText("Diagnostyka programu").textContent).toBe("diagnostyka przed zatrzymaniem");
+  expect(screen.queryByRole("region", { name: "Błąd programu" })).toBeNull();
   expect(screen.queryByRole("alert")).toBeNull();
 });
 

@@ -5,6 +5,11 @@ pełne stderr (także przy jednoczesnym stdout), wyjątek, polskie wyjaśnienie,
 numer linii oraz czas w sekundach i pamięć w KB. Wyjście jest renderowane jako
 tekst React w `pre`, bez interpretowania HTML.
 
+Sam kanał `stderr` nie klasyfikuje wykonania jako błędnego. Przy `completed`
+oraz `time_limit_exceeded` jego pełna zawartość jest pokazywana jako diagnostyka,
+bez sekcji wyjątku i przyjaznego wyjaśnienia błędu. Parsowanie wyjątku i sekcja
+„Błąd programu” dotyczą wyłącznie statusu `execution_error`.
+
 Styl panelu nawiązuje do Figma `217:6112`: zwarty nagłówek ze statusem,
 czasem i pamięcią, kolorowy traceback oraz zaokrąglony blok wyjaśnienia
 z ikoną i numerem linii. Komunikaty opisują typ wyjątku bez analizowania

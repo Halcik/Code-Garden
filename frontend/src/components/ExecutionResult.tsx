@@ -6,7 +6,7 @@ export function ExecutionSummary({ result }: { result: RunResult }) {
   const failed = result.status !== "completed";
   return <>
     <span title="Tekst wypisany przez Twój program, np. za pomocą print().">Wyjście programu</span>
-    <span title="Komunikaty diagnostyczne programu, np. szczegóły błędu Pythona." className={result.stderr ? "execution-stderr-label" : undefined}>Komunikaty błędów{result.stderr ? " · 1" : ""}</span>
+    <span title="Dodatkowe komunikaty programu, np. ostrzeżenia lub szczegóły błędu. Ich obecność nie oznacza, że program zakończył się błędem." className={result.stderr && result.status === "execution_error" ? "execution-stderr-label" : undefined}>Diagnostyka programu</span>
     <span className={`execution-state ${failed ? "is-error" : "is-success"}`}>{result.status === "time_limit_exceeded" ? "Przekroczono czas" : failed ? "Zakończono błędem" : "Zakończono poprawnie"}</span>
     {(result.time != null || result.memory != null) && <span className="execution-metrics">
       {result.time != null && <span>Czas: {result.time} s</span>}
@@ -16,11 +16,13 @@ export function ExecutionSummary({ result }: { result: RunResult }) {
 }
 
 export default function ExecutionResult({ result }: { result: RunResult }) {
-  const error = result.stderr ? parsePythonError(result.stderr) : null;
+  const failed = result.status === "execution_error";
+  const error = failed && result.stderr ? parsePythonError(result.stderr) : null;
   return <>
     {result.stdout ? <pre aria-label="Wyjście programu">{result.stdout}</pre> : result.status === "completed" && <p className="student-placeholder-copy">Program nie wypisał nic na standardowe wyjście.</p>}
     {result.status === "time_limit_exceeded" && <p className="execution-error" role="status">Program przekroczył dozwolony czas wykonania i został zatrzymany. Sprawdź, czy w kodzie nie występuje nieskończona pętla lub zbyt kosztowna operacja.</p>}
-    {(error || result.status === "execution_error") && <section className="execution-error" aria-label="Błąd programu">
+    {!failed && result.stderr && <pre aria-label="Diagnostyka programu">{result.stderr}</pre>}
+    {failed && <section className="execution-error" aria-label="Błąd programu">
       <h3 className="execution-accessible-label">Błąd{error?.exception_type ? `: ${error.exception_type}` : " programu"}</h3>
       {error && <pre aria-label="Oryginalny błąd" className="execution-traceback">{error.original_error}</pre>}
       <div className="execution-explanation">
