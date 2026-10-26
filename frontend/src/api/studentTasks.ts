@@ -32,7 +32,9 @@ export async function runStudentCode(id: number, source_code: string, stdin: str
   const response = await apiFetch(`/student/tasks/${id}/run`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_code, stdin }),
   });
-  if (!response.ok) throw new TasksApiError(response.status === 422 ? "Kod i dane wejściowe mogą mieć maksymalnie po 100 KB."
+  if (!response.ok) throw new TasksApiError(response.status === 503 ? "Usługa uruchamiania kodu lub wybrana wersja Pythona jest niedostępna. Spróbuj ponownie później."
+    : response.status === 504 ? "Przekroczono czas oczekiwania na odpowiedź usługi uruchamiania kodu. Spróbuj ponownie."
+    : response.status === 422 ? "Kod i dane wejściowe mogą mieć maksymalnie po 100 KB."
     : "Nie udało się uruchomić kodu. Spróbuj ponownie.", response.status);
   return response.json();
 }

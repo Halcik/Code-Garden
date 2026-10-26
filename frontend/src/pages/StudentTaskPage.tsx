@@ -1,9 +1,10 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getStudentTask, runStudentCode } from "../api/studentTasks";
 import type { RunResult, StudentTaskDetail } from "../api/studentTasks";
 import { TasksApiError } from "../api/tasks";
 import { useAuth } from "../auth/AuthProvider";
+import ExecutionResult, { ExecutionSummary } from "../components/ExecutionResult";
 import TaskBadges from "../components/TaskBadges";
 import StudentTaskHints from "../components/StudentTaskHints";
 import "../styles/student-task.css";
@@ -15,17 +16,19 @@ function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
   const [studentCode, setStudentCode] = useState(() => task.starter_code ?? "");
   const [stdin, setStdin] = useState("");
   const [running, setRunning] = useState(false);
+  const runPending = useRef(false);
   const [runError, setRunError] = useState("");
   const [result, setResult] = useState<RunResult | null>(null);
   const { retrySession } = useAuth();
   async function run() {
-    if (running) return;
+    if (runPending.current) return;
+    runPending.current = true;
     setRunning(true); setRunError(""); setResult(null);
     try { setResult(await runStudentCode(task.id, studentCode, stdin)); }
     catch (reason) {
-      setRunError(reason instanceof Error ? reason.message : "Nie udało się uruchomić kodu.");
+      setRunError(reason instanceof TasksApiError ? reason.message : "Nie udało się połączyć z usługą uruchamiania kodu. Spróbuj ponownie.");
       if (reason instanceof TasksApiError && [401, 403].includes(reason.status)) retrySession();
-    } finally { setRunning(false); }
+    } finally { runPending.current = false; setRunning(false); }
   }
   return <div className="student-task-detail" data-run-status={result?.status}>
     <header className="student-task-header">
@@ -60,12 +63,9 @@ function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
         </div>
         {runError && <p role="alert" className="error-message">{runError}</p>}
         <section className="student-output-panel" aria-labelledby="student-output-title" aria-busy={running}>
-          <header className="student-output-header"><h2 id="student-output-title">Wynik</h2><span>stdout</span></header>
+          <header className="student-output-header"><h2 id="student-output-title" aria-label="Wynik uruchomienia">Wynik</h2>{result && <ExecutionSummary result={result} />}</header>
           <div className="student-output-content" aria-live="polite">
-            {result?.stdout ? <pre>{result.stdout}</pre>
-              : <p className="student-placeholder-copy">{running ? "Oczekiwanie na wynik…"
-                : result ? "Program nie wypisał nic na standardowe wyjście."
-                : "Uruchom kod, aby zobaczyć wynik programu."}</p>}
+            {result ? <ExecutionResult result={result} /> : <p className="student-placeholder-copy">{running ? "Oczekiwanie na wynik…" : runError ? "Możesz ponownie uruchomić kod." : "Uruchom kod, aby zobaczyć wynik programu."}</p>}
           </div>
         </section>
         <section className="admin-card student-material-card" aria-labelledby="student-tests-title"><h2 id="student-tests-title">Testy automatyczne</h2><p className="student-placeholder-copy">Po uruchomieniu kodu tutaj pojawią się wyniki testów automatycznych.</p></section>
