@@ -28,6 +28,22 @@ export async function listStudentTasks(filters: CatalogFilters, signal: AbortSig
 }
 
 export type RunResult = { status: "completed" | "execution_error" | "time_limit_exceeded"; stdout: string | null; stderr: string | null; exit_code: number | null; time: number | null; memory: number | null };
+export type SolutionTestResult = {
+  number: number; position: number; test_type: "INPUT_OUTPUT" | "FUNCTION" | "STRUCTURAL";
+  is_public: boolean; status: "passed" | "failed";
+  details?: { name: string; config: Record<string, unknown>; actual_output?: string; actual_result?: unknown; has_actual_result?: boolean; execution?: RunResult; message?: string };
+};
+export type CheckResult = { passed: number; total: number; all_passed: boolean; results: SolutionTestResult[] };
+export async function checkStudentSolution(id: number, source_code: string): Promise<CheckResult> {
+  const response = await apiFetch(`/student/tasks/${id}/check`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_code }),
+  });
+  if (!response.ok) throw new TasksApiError(response.status === 503 ? "Usługa sprawdzania lub wybrana wersja Pythona jest niedostępna. Spróbuj ponownie później."
+    : response.status === 504 ? "Przekroczono czas oczekiwania na sprawdzenie rozwiązania. Spróbuj ponownie."
+    : response.status === 422 ? "Kod musi zawierać od 1 bajtu do 100 KB."
+    : "Nie udało się sprawdzić rozwiązania. Spróbuj ponownie.", response.status);
+  return response.json();
+}
 export async function runStudentCode(id: number, source_code: string, stdin: string): Promise<RunResult> {
   const response = await apiFetch(`/student/tasks/${id}/run`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_code, stdin }),

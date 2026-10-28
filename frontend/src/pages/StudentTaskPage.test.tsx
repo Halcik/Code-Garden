@@ -86,7 +86,7 @@ it("loads detail through the student API, shows all material and initializes an 
   expect(apiFetch).toHaveBeenCalledWith("/student/tasks/7", expect.objectContaining({ signal: expect.any(AbortSignal) }));
   expect(screen.queryByText("READY")).toBeNull();
   expect(screen.getByRole("heading", { name: "Testy automatyczne" })).toBeTruthy();
-  expect(screen.getByText("Po uruchomieniu kodu tutaj pojawią się wyniki testów automatycznych.")).toBeTruthy();
+  expect(screen.getByText("Sprawdź rozwiązanie, aby zobaczyć wyniki testów.")).toBeTruthy();
   expect(screen.getByLabelText("Kategoria zadania: Napisy").textContent).toBe("Napisy");
   expect(screen.getByLabelText("Kategoria zadania: Napisy").textContent).not.toBe(task.title);
   expect(screen.getByRole("region", { name: "Wynik uruchomienia" })).toBeTruthy();
@@ -346,4 +346,94 @@ it.each([503, 504, 500])("handles HTTP %s with a safe message and enables anothe
   fireEvent.click(screen.getByRole("button", { name: "Uruchom kod" }));
   expect(await screen.findByText("recovered")).toBeTruthy();
   expect(screen.queryByRole("alert")).toBeNull();
+});
+
+const checked = {
+  passed: 1, total: 2, all_passed: false, results: [
+    { number: 1, position: 2, test_type: "INPUT_OUTPUT", is_public: true, status: "passed", details: { name: "Dodawanie", config: { input_data: "2 3", expected_output: "5" }, actual_output: "5\n" } },
+    { number: 2, position: 7, test_type: "FUNCTION", is_public: false, status: "failed" },
+  ],
+};
+
+it("checks current code without local stdin, blocks duplicate requests, renders ordered results and replaces them on retry", async () => {
+  mount(); await screen.findByRole("textbox", { name: "Twój kod Python" });
+  fireEvent.change(code(), { target: { value: "print(5)" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Dane wejściowe" }), { target: { value: "LOCAL INPUT" } });
+  const pending = deferred(); vi.mocked(apiFetch).mockReturnValueOnce(pending.promise);
+  fireEvent.click(screen.getByRole("button", { name: "Sprawdź rozwiązanie" }));
+  const button = screen.getByRole("button", { name: "Sprawdzanie…" }) as HTMLButtonElement;
+  expect(button.disabled).toBe(true);
+  fireEvent.click(button);
+  expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => path.endsWith("/check"))).toHaveLength(1);
+  expect(apiFetch).toHaveBeenLastCalledWith("/student/tasks/7/check", expect.objectContaining({ body: JSON.stringify({ source_code: "print(5)" }) }));
+  expect(screen.getByText("Oczekiwanie na wyniki testów…")).toBeTruthy();
+  await act(async () => pending.resolve(Response.json(checked)));
+  expect(await screen.findByLabelText("1 / 2 testów zaliczonych")).toBeTruthy();
+  const region = screen.getByRole("region", { name: "Testy automatyczne" });
+  expect([...region.querySelectorAll("li h3")].map(node => node.textContent)).toEqual(["Test publiczny · Dodawanie", "Ukryty test 2"]);
+  expect([...region.querySelectorAll("li .solution-test-badge")].map(node => node.textContent)).toEqual(["Zaliczony", "Niezaliczony"]);
+  const publicDetails = region.querySelector("details")!;
+  expect(publicDetails.open).toBe(false);
+  fireEvent.click(screen.getByLabelText("Szczegóły testu 1"));
+  expect(publicDetails.open).toBe(true);
+  expect(screen.getByText("Uzyskany wynik:")).toBeTruthy();
+  expect(region.querySelectorAll("details")).toHaveLength(1);
+  expect(region.textContent).toContain("2 3");
+  expect(screen.queryByText("Wszystkie testy zostały zaliczone.")).toBeNull();
+  const next = deferred(); vi.mocked(apiFetch).mockReturnValueOnce(next.promise);
+  fireEvent.click(screen.getByRole("button", { name: "Sprawdź rozwiązanie" }));
+  expect(screen.queryByLabelText("1 / 2 testów zaliczonych")).toBeNull();
+  await act(async () => next.resolve(Response.json({ ...checked, passed: 2, all_passed: true, results: checked.results.map(test => ({ ...test, status: "passed" })) })));
+  expect(await screen.findByText("Wszystkie testy zostały zaliczone.")).toBeTruthy();
+  expect(screen.getByLabelText("2 / 2 testów zaliczonych")).toBeTruthy();
+  expect((screen.getByRole("button", { name: "Sprawdź rozwiązanie" }) as HTMLButtonElement).disabled).toBe(false);
+});
+
+it.each([503, 504])("presents check infrastructure HTTP %s separately and allows retry", async status => {
+  mount(); await screen.findByRole("textbox", { name: "Twój kod Python" });
+  vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({ detail: "SECRET BACKEND TRACE" }, { status }));
+  fireEvent.click(screen.getByRole("button", { name: "Sprawdź rozwiązanie" }));
+  expect((await screen.findByRole("alert")).textContent).toContain(status === 503 ? "niedostępna" : "czas oczekiwania");
+  expect(screen.queryByText(/SECRET/)).toBeNull();
+  expect(screen.queryByText(/0 \/ 2/)).toBeNull();
+  expect((screen.getByRole("button", { name: "Sprawdź rozwiązanie" }) as HTMLButtonElement).disabled).toBe(false);
+  vi.mocked(apiFetch).mockResolvedValueOnce(Response.json(checked));
+  fireEvent.click(screen.getByRole("button", { name: "Sprawdź rozwiązanie" }));
+  expect(await screen.findByLabelText("1 / 2 testów zaliczonych")).toBeTruthy();
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it.each(["execution_error", "time_limit_exceeded"])("reuses execution diagnostics for public %s but never displays hidden diagnostics", async status => {
+  mount(); await screen.findByRole("textbox", { name: "Twój kod Python" });
+  const execution = { status, stderr: 'Traceback (most recent call last):\n  File "solution.py", line 3, in f\nZeroDivisionError: division by zero', stdout: "", time: 0, memory: 0, exit_code: 1 };
+  vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({ passed: 0, total: 2, all_passed: false, results: [
+    { ...checked.results[0], status: "failed", details: { ...checked.results[0].details, execution } },
+    // Defense in depth: even an unexpectedly populated hidden details object is ignored.
+    { ...checked.results[1], details: { name: "SECRET", config: { arguments: ["SECRET"] }, execution: { ...execution, stderr: "SECRET TRACE" } } },
+  ] }));
+  fireEvent.click(screen.getByRole("button", { name: "Sprawdź rozwiązanie" }));
+  expect(await screen.findByLabelText("0 / 2 testów zaliczonych")).toBeTruthy();
+  fireEvent.click(screen.getByLabelText("Szczegóły testu 1"));
+  if (status === "execution_error") {
+    expect(screen.getByText(friendlyMessages.ZeroDivisionError)).toBeTruthy();
+    expect(screen.getByText("Błąd w linii: 3")).toBeTruthy();
+  } else expect(screen.getByText(/Program przekroczył dozwolony czas/)).toBeTruthy();
+  expect(screen.queryByText(/SECRET/)).toBeNull();
+});
+
+it("shows public function values, structural names and safe zero-test state", async () => {
+  mount(); await screen.findByRole("textbox", { name: "Twój kod Python" });
+  vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({ passed: 2, total: 2, all_passed: true, results: [
+    { number: 1, position: 1, test_type: "FUNCTION", is_public: true, status: "passed", details: { name: "Wartość funkcji", config: { function_name: "f", arguments: [1, 2], expected_result: null }, actual_result: null, has_actual_result: true } },
+    { number: 2, position: 2, test_type: "STRUCTURAL", is_public: true, status: "passed", details: { name: "Kod zawiera pętlę for", config: { rule_type: "USES_FOR" } } },
+  ] }));
+  fireEvent.click(screen.getByRole("button", { name: "Sprawdź rozwiązanie" }));
+  fireEvent.click(await screen.findByLabelText("Szczegóły testu 1"));
+  expect(screen.getByText("Uzyskana wartość:")).toBeTruthy();
+  expect(screen.getAllByText("null")).toHaveLength(2);
+  expect(screen.getByText(/Kod zawiera pętlę for/)).toBeTruthy();
+  vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({ passed: 0, total: 0, all_passed: false, results: [] }));
+  fireEvent.click(screen.getByRole("button", { name: "Sprawdź rozwiązanie" }));
+  expect(await screen.findByText("Do zadania nie dodano jeszcze testów.")).toBeTruthy();
+  expect(screen.queryByText("Wszystkie testy zostały zaliczone.")).toBeNull();
 });

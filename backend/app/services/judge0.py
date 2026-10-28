@@ -43,13 +43,14 @@ class Judge0Service:
         except ValueError:
             raise Judge0Error(502, "Invalid Judge0 response") from None
 
-    async def create_submission(self, client: httpx.AsyncClient, *, source_code: str, stdin: str, language_id: int, cpu: float, memory: int) -> str:
+    async def create_submission(self, client: httpx.AsyncClient, *, source_code: str, stdin: str, language_id: int, cpu: float, memory: int, additional_files: str | None = None) -> str:
         result = await self.request(client, "POST", "/submissions", params={"base64_encoded": "true", "wait": "false"}, json={
             "source_code": base64.b64encode(source_code.encode()).decode(),
             "stdin": base64.b64encode(stdin.encode()).decode(),
             "language_id": language_id, "cpu_time_limit": cpu,
             "memory_limit": memory * 1024, "wall_time_limit": self.wall_time_limit(cpu),
             "enable_network": False,
+            **({"additional_files": additional_files} if additional_files is not None else {}),
         })
         token = result.get("token") if isinstance(result, dict) else None
         if not isinstance(token, str) or not re.fullmatch(r"[a-zA-Z0-9-]{1,100}", token):
@@ -59,7 +60,7 @@ class Judge0Service:
     async def get_submission(self, client: httpx.AsyncClient, token: str):
         return await self.request(client, "GET", f"/submissions/{token}", params={"base64_encoded": "true", "fields": "status,stdout,stderr,compile_output,exit_code,time,memory"})
 
-    async def run_code(self, *, source_code: str, stdin: str, python_version: str, time_limit_seconds: float, memory_limit_mb: int) -> RunResponse:
+    async def run_code(self, *, source_code: str, stdin: str, python_version: str, time_limit_seconds: float, memory_limit_mb: int, additional_files: str | None = None) -> RunResponse:
         language_id = self.settings.judge0_python_languages.get(python_version)
         if language_id is None:
             raise Judge0Error(503, "Python environment is not configured in Judge0")
@@ -72,7 +73,7 @@ class Judge0Service:
                     language = next((item for item in languages if item.get("id") == language_id), None)
                     if language is None or not re.search(r"Python.*(?<![\d.])" + re.escape(python_version) + r"(?!\d)", str(language.get("name", ""))):
                         raise Judge0Error(503, "Requested Python version is unavailable in Judge0")
-                    token = await self.create_submission(client, source_code=source_code, stdin=stdin, language_id=language_id, cpu=time_limit_seconds, memory=memory_limit_mb)
+                    token = await self.create_submission(client, source_code=source_code, stdin=stdin, language_id=language_id, cpu=time_limit_seconds, memory=memory_limit_mb, additional_files=additional_files)
                     while True:
                         result = await self.get_submission(client, token)
                         status = result["status"]["id"]
