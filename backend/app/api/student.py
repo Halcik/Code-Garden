@@ -9,7 +9,9 @@ from app.db.session import get_db
 from app.core.config import get_settings
 from app.schemas.execution import RunRequest, RunResponse
 from app.services.judge0 import Judge0Service, Judge0Error
-from app.models.task import Task, TaskDifficulty, TaskHint, TaskStatus, TaskType
+from app.models.task import Task, TaskDifficulty, TaskHint, TaskStatus, TaskType, TaskTest
+from app.schemas.solution_check import CheckRequest, CheckResponse
+from app.services.solution_check import check_solution
 from app.models.user import UserRole
 from app.schemas.task import StudentTaskDetail, StudentTaskList
 from app.schemas.task_hint import StudentHintResponse, StudentHintSummary
@@ -76,6 +78,19 @@ def get_student_hint(task_id: int, number: int, response: Response, db: Session 
 
 def get_judge0_service():
     return Judge0Service(get_settings())
+
+
+@router.post("/tasks/{task_id}/check", response_model=CheckResponse, response_model_exclude_none=True,
+             dependencies=[Depends(check_origin)])
+async def check_student_solution(task_id: int, payload: CheckRequest, response: Response,
+                                 db: Session = Depends(get_db), service: Judge0Service = Depends(get_judge0_service)):
+    task = available_student_task(db, task_id, response)
+    tests = list(db.scalars(select(TaskTest).where(TaskTest.task_id == task_id)
+                           .order_by(TaskTest.position, TaskTest.id)))
+    try:
+        return await check_solution(task, tests, payload.source_code, service)
+    except Judge0Error as exc:
+        raise HTTPException(exc.status_code, exc.message, headers={"Cache-Control": "no-store"}) from None
 
 
 @router.post("/tasks/{task_id}/run", response_model=RunResponse, dependencies=[Depends(check_origin)])

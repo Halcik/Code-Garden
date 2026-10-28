@@ -1,12 +1,13 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getStudentTask, runStudentCode } from "../api/studentTasks";
-import type { RunResult, StudentTaskDetail } from "../api/studentTasks";
+import { checkStudentSolution, getStudentTask, runStudentCode } from "../api/studentTasks";
+import type { CheckResult, RunResult, StudentTaskDetail } from "../api/studentTasks";
 import { TasksApiError } from "../api/tasks";
 import { useAuth } from "../auth/AuthProvider";
 import ExecutionResult, { ExecutionSummary } from "../components/ExecutionResult";
 import TaskBadges from "../components/TaskBadges";
 import StudentTaskHints from "../components/StudentTaskHints";
+import SolutionCheckResult, { SolutionCheckSummary } from "../components/SolutionCheckResult";
 import "../styles/student-task.css";
 
 const PythonCodeEditor = lazy(() => import("../components/PythonCodeEditor"));
@@ -20,6 +21,20 @@ function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
   const [runError, setRunError] = useState("");
   const [result, setResult] = useState<RunResult | null>(null);
   const { retrySession } = useAuth();
+  const [checking, setChecking] = useState(false);
+  const checkPending = useRef(false);
+  const [checkError, setCheckError] = useState("");
+  const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
+  async function check() {
+    if (checkPending.current) return;
+    checkPending.current = true;
+    setChecking(true); setCheckError(""); setCheckResult(null);
+    try { setCheckResult(await checkStudentSolution(task.id, studentCode)); }
+    catch (reason) {
+      setCheckError(reason instanceof TasksApiError ? reason.message : "Nie udało się połączyć z usługą sprawdzania. Spróbuj ponownie.");
+      if (reason instanceof TasksApiError && [401, 403].includes(reason.status)) retrySession();
+    } finally { checkPending.current = false; setChecking(false); }
+  }
   async function run() {
     if (runPending.current) return;
     runPending.current = true;
@@ -59,6 +74,7 @@ function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
           <section className="admin-card student-input-card" aria-label="Dane wejściowe"><label htmlFor="student-stdin">Dane wejściowe</label><textarea id="student-stdin" value={stdin} onChange={event => setStdin(event.target.value)} placeholder="Tutaj podasz dane wejściowe programu" /></section>
           <div className="student-execution-actions">
             <button className="admin-button primary" disabled={running} onClick={run}><span className="student-detail-icon" data-icon="play" aria-hidden="true" />{running ? "Uruchamianie…" : "Uruchom kod"}</button>
+            <button className="admin-button primary" disabled={checking} onClick={check}>{checking ? "Sprawdzanie…" : "Sprawdź rozwiązanie"}</button>
           </div>
         </div>
         {runError && <p role="alert" className="error-message">{runError}</p>}
@@ -68,7 +84,17 @@ function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
             {result ? <ExecutionResult result={result} /> : <p className="student-placeholder-copy">{running ? "Oczekiwanie na wynik…" : runError ? "Możesz ponownie uruchomić kod." : "Uruchom kod, aby zobaczyć wynik programu."}</p>}
           </div>
         </section>
-        <section className="admin-card student-material-card" aria-labelledby="student-tests-title"><h2 id="student-tests-title">Testy automatyczne</h2><p className="student-placeholder-copy">Po uruchomieniu kodu tutaj pojawią się wyniki testów automatycznych.</p></section>
+        <section className="admin-card student-material-card solution-check-card" aria-labelledby="student-tests-title" aria-busy={checking}>
+          <header className="solution-check-header">
+            <div><h2 id="student-tests-title">Testy automatyczne</h2><p>{checking ? "Trwa sprawdzanie rozwiązania" : checkResult ? "Wynik ostatniego sprawdzenia" : "Sprawdź kod na testach zadania"}</p></div>
+            {checkResult && <SolutionCheckSummary result={checkResult} />}
+          </header>
+          {checkError && <p role="alert" className="error-message">{checkError}</p>}
+          <div aria-live="polite">{checking ? <p role="status">Oczekiwanie na wyniki testów…</p> : checkResult ? <SolutionCheckResult result={checkResult} /> : <p className="student-placeholder-copy">Sprawdź rozwiązanie, aby zobaczyć wyniki testów.</p>}</div>
+          <footer className="solution-check-footer">
+            <p>{checkResult?.total ? "Kliknij publiczny test, aby zobaczyć szczegóły." : "Testy zadania działają niezależnie od Twoich danych stdin."}</p>
+          </footer>
+        </section>
       </section>
     </div>
   </div>;
