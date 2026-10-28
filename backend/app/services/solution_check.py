@@ -1,11 +1,14 @@
 """Evaluate stored KAN-27 definitions. Student code runs only inside Judge0."""
-import ast
 import asyncio
 import base64
 import io
 import json
 import secrets
 import zipfile
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic import BaseModel, ConfigDict
 
 from app.schemas.execution import RunResponse
 from app.schemas.solution_check import CheckResponse, PublicTestDetails, TestResult
@@ -34,26 +37,44 @@ def invalid_constant(value):
     raise ValueError("Non-finite JSON value")
 
 
-def structural_passes(tree, config):
+class StructuralAnalysis(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid")
+    syntax_valid: bool
+    functions: list[str]
+    classes: list[str]
+    calls: list[str]
+    uses_for: bool
+    uses_while: bool
+    uses_if: bool
+
+
+@lru_cache(maxsize=1)
+def structural_runner_source():
+    return Path(__file__).with_name("structural_runner.py").read_text(encoding="utf-8")
+
+
+def structural_passes(analysis, config):
+    if not analysis.syntax_valid:
+        return False
     rule, value = config["rule_type"], config.get("expected_value")
-    for node in ast.walk(tree):
-        if rule == "FUNCTION_EXISTS" and isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == value:
-            return True
-        if rule == "CLASS_EXISTS" and isinstance(node, ast.ClassDef) and node.name == value:
-            return True
-        if rule == "CALLS_FUNCTION" and isinstance(node, ast.Call):
-            parts = []
-            target = node.func
-            while isinstance(target, ast.Attribute):
-                parts.append(target.attr)
-                target = target.value
-            if isinstance(target, ast.Name) and ".".join([target.id, *reversed(parts)]) == value:
-                return True
-        if any(rule == name and isinstance(node, kind) for name, kind in (
-            ("USES_FOR", (ast.For, ast.AsyncFor)), ("USES_WHILE", ast.While), ("USES_IF", ast.If)
-        )):
-            return True
-    return False
+    return {"FUNCTION_EXISTS": value in analysis.functions, "CLASS_EXISTS": value in analysis.classes,
+            "CALLS_FUNCTION": value in analysis.calls, "USES_FOR": analysis.uses_for,
+            "USES_WHILE": analysis.uses_while, "USES_IF": analysis.uses_if}[rule]
+
+
+async def analyze_in_task_interpreter(task, source, service):
+    execution = RunResponse.model_validate(await service.run_code(source_code=structural_runner_source(),
+        stdin=source, python_version=task.python_version, time_limit_seconds=task.time_limit_seconds,
+        memory_limit_mb=task.memory_limit_mb))
+    # SyntaxError is reported by the analyzer as JSON, with a completed execution.
+    # An analyzer crash or timeout is a technical failure, not a student failure.
+    if execution.status != "completed":
+        raise Judge0Error(504 if execution.status == "time_limit_exceeded" else 502,
+                          "Structural analysis could not be completed")
+    try:
+        return StructuralAnalysis.model_validate(json.loads(execution.stdout or ""))
+    except (ValueError, RecursionError):
+        raise Judge0Error(502, "Invalid structural analysis response") from None
 
 
 def function_submission(source, config, marker):
@@ -85,14 +106,9 @@ async def check_solution(task, tests, source, service):
     except ValueError:
         raise Judge0Error(503, "Invalid stored test configuration") from None
     results = []
-    tree = None
-    syntax_error = None
-    if any(definition.test_type == "STRUCTURAL" for _, definition in definitions):
-        try:
-            tree = ast.parse(source)
-        except (SyntaxError, ValueError, RecursionError):
-            syntax_error = "Nie można przeanalizować struktury kodu. Sprawdź składnię Pythona."
+    analysis = None
     executions = sum(definition.test_type != "STRUCTURAL" for _, definition in definitions)
+    executions += any(definition.test_type == "STRUCTURAL" for _, definition in definitions)
     # Sequential execution respects teacher order. The outer deadline covers the
     # full per-test wall/queue budget, capped at five minutes for the whole check.
     budget = min(300, 5 + executions * service.execution_deadline(task.time_limit_seconds))
@@ -103,9 +119,11 @@ async def check_solution(task, tests, source, service):
                 details = PublicTestDetails(name=definition.name, config=config) if not definition.is_hidden else None
                 passed = False
                 if definition.test_type == "STRUCTURAL":
-                    passed = tree is not None and structural_passes(tree, config)
-                    if details:
-                        details.message = syntax_error
+                    if analysis is None:
+                        analysis = await analyze_in_task_interpreter(task, source, service)
+                    passed = structural_passes(analysis, config)
+                    if details and not analysis.syntax_valid:
+                        details.message = "Nie można przeanalizować struktury kodu. Sprawdź składnię Pythona."
                 else:
                     marker = secrets.token_hex(24)
                     submission = (function_submission(source, config, marker) if definition.test_type == "FUNCTION"

@@ -12,6 +12,7 @@ import pytest
 from app.schemas.execution import RunResponse
 from app.services.judge0 import Judge0Error, Judge0Service
 from app.services.solution_check import check_solution
+from app.services.structural_runner import analyze_structure
 from test_execution import endpoint, settings
 
 
@@ -67,15 +68,17 @@ def test_hidden_output_and_diagnostics_never_serialized(status):
 ])
 def test_structural_ast_pass_fail(rule, value, source):
     runner = service()
+    runner.run_code.side_effect = lambda **kwargs: RunResponse(status="completed", stdout=json.dumps(analyze_structure(kwargs["stdin"])))
     config = {"rule_type": rule, "expected_value": value}
     assert check([item("STRUCTURAL", config)], runner, source).all_passed
     assert not check([item("STRUCTURAL", config)], runner, "# " + source.replace("\n", " ")).all_passed
-    runner.run_code.assert_not_called()
+    assert runner.run_code.await_count == 2
 
 
 @pytest.mark.parametrize("hidden", [False, True])
 def test_structural_syntax_error_and_hidden_rule(hidden):
-    result = check([item("STRUCTURAL", {"rule_type": "FUNCTION_EXISTS", "expected_value": "SECRET"}, hidden)], service(), "def broken(:")
+    runner = service({"status": "completed", "stdout": json.dumps(analyze_structure("def broken(:"))})
+    result = check([item("STRUCTURAL", {"rule_type": "FUNCTION_EXISTS", "expected_value": "SECRET"}, hidden)], runner, "def broken(:")
     assert result.passed == 0
     if hidden:
         assert "SECRET" not in result.model_dump_json(exclude_none=True)
@@ -145,6 +148,63 @@ def test_suite_timeout_is_technical():
     with pytest.raises(Judge0Error) as error:
         check([item()], runner)
     assert error.value.status_code == 504
+
+
+@pytest.mark.parametrize("version", ["3.11", "3.12", "3.13", "3.14"])
+def test_structural_parser_uses_task_interpreter_and_never_backend_ast(version, monkeypatch):
+    import ast
+    source = 'def render():\n    return t"Hello {name}"\n'
+    facts = dict(syntax_valid=version == "3.14", functions=["render"] if version == "3.14" else [],
+                 classes=[], calls=[], uses_for=False, uses_while=False, uses_if=False)
+    runner = service({"status": "completed", "stdout": json.dumps(facts)})
+    task = SimpleNamespace(python_version=version, time_limit_seconds=15, memory_limit_mb=128)
+    # Backend 3.13 cannot parse this syntax. It must never attempt to do so.
+    monkeypatch.setattr(ast, "parse", lambda *a, **kw: pytest.fail("Backend must not parse student code"))
+    result = asyncio.run(check_solution(task, [item("STRUCTURAL", {"rule_type": "FUNCTION_EXISTS", "expected_value": "render"})], source, runner))
+    assert result.all_passed == (version == "3.14")
+    kwargs = runner.run_code.await_args.kwargs
+    assert kwargs["python_version"] == version
+    assert kwargs["stdin"] == source
+    assert kwargs["time_limit_seconds"] == 15 and kwargs["memory_limit_mb"] == 128
+    assert "ast.parse(source)" in kwargs["source_code"]
+    assert source not in kwargs["source_code"]
+
+
+def test_structural_analysis_cached_at_first_structural_test_and_budgeted(monkeypatch):
+    from contextlib import asynccontextmanager
+    facts = analyze_structure("def f(): pass")
+    runner = service({"status": "completed", "stdout": "ok"},
+                     {"status": "completed", "stdout": json.dumps(facts)},
+                     {"status": "completed", "stdout": "ok"})
+    budgets = []
+    @asynccontextmanager
+    async def timeout(seconds):
+        budgets.append(seconds)
+        yield
+    monkeypatch.setattr(asyncio, "timeout", timeout)
+    tests = [item(config={"input_data": "first", "expected_output": "ok"}),
+             item("STRUCTURAL", {"rule_type": "FUNCTION_EXISTS", "expected_value": "f"}),
+             item("STRUCTURAL", {"rule_type": "CLASS_EXISTS", "expected_value": "SECRET"}, hidden=True),
+             item(config={"input_data": "last", "expected_output": "ok"})]
+    result = check(tests, runner, "def f(): pass")
+    assert [call.kwargs["stdin"] for call in runner.run_code.await_args_list] == ["first", "def f(): pass", "last"]
+    assert budgets == [74]  # Two executions plus one shared AST analysis.
+    assert (result.passed, result.total) == (3, 4)
+    assert "SECRET" not in result.model_dump_json(exclude_none=True)
+
+
+@pytest.mark.parametrize("output,code", [
+    ({"status": "execution_error", "stderr": "SECRET diagnostics"}, 502),
+    ({"status": "time_limit_exceeded"}, 504),
+    ({"status": "completed", "stdout": "not JSON"}, 502),
+    ({"status": "completed", "stdout": "{}"}, 502),
+    ({"status": "completed", "stdout": '{"syntax_valid": "true"}'}, 502),
+])
+def test_structural_analyzer_failure_is_technical_not_student_failure(output, code):
+    with pytest.raises(Judge0Error) as error:
+        check([item("STRUCTURAL", {"rule_type": "USES_FOR"}, hidden=True)], service(output))
+    assert error.value.status_code == code
+    assert "SECRET" not in error.value.message
 
 
 def prepare_endpoint(endpoint):
