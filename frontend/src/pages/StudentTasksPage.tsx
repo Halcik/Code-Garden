@@ -67,7 +67,7 @@ export default function StudentTasksPage() {
       <button type="button" aria-pressed={view === "catalog"} onClick={() => { setView("catalog"); if (filters.progress_status) change("progress_status", ""); }}>Z katalogu <span className="student-view-count">{loading ? "…" : catalogCount ?? "—"}</span></button>
       {Object.entries(progressLabels).map(([status, label]) => {
         const count = data?.progress_counts?.[status as keyof typeof progressLabels];
-        return <button key={status} type="button" aria-pressed={filters.progress_status === status} onClick={() => { setView("all"); change("progress_status", status); }}>{label}{(loading || (count != null && count > 0)) && <span className="student-view-count">{loading ? "…" : count}</span>}</button>;
+        return <button key={status} type="button" aria-pressed={filters.progress_status === status} onClick={() => { setView("all"); change("progress_status", status); }}>{label}{(loading || (count != null && count > 0)) && <> <span className="student-view-count">{loading ? "…" : count}</span></>}</button>;
       })}
       <button type="button" disabled title="Filtrowanie według terminów będzie dostępne wkrótce">Po terminie</button>
     </div>

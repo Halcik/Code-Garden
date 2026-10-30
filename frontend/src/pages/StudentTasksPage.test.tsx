@@ -331,3 +331,13 @@ it("shows full progress counts even while filtering a paginated list", async () 
   expect(tabs.getByRole("button", { name: "Z katalogu 49" })).toBeTruthy();
   expect(tabs.getByRole("button", { name: "W toku 12" })).toBeTruthy();
 });
+
+it("omits zero progress counts while keeping positive counts separated from their labels", async () => {
+  vi.mocked(apiFetch).mockResolvedValue(Response.json({ items: [task], total: 7, limit: 24, offset: 0,
+    progress_counts: { NOT_STARTED: 0, IN_PROGRESS: 0, COMPLETED: 7 } }));
+  mount(); await loaded();
+  const tabs = within(screen.getByRole("group", { name: "Widok zadań" }));
+  expect(tabs.getByRole("button", { name: "Nierozpoczęte" }).querySelector(".student-view-count")).toBeNull();
+  expect(tabs.getByRole("button", { name: "W toku" }).querySelector(".student-view-count")).toBeNull();
+  expect(tabs.getByRole("button", { name: "Ukończone 7" })).toBeTruthy();
+});
