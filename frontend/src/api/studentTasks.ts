@@ -2,9 +2,9 @@ import { apiFetch } from "./client";
 import { TasksApiError } from "./tasks";
 import type { Task } from "./tasks";
 
-export type StudentTask = Pick<Task, "id" | "title" | "description" | "topic" | "difficulty" | "task_type" | "estimated_time_minutes">;
-export type CatalogFilters = { search: string; topic: string; difficulty: string; task_type: string; sort_by: string; sort_order: string; offset: number };
-export type StudentTaskList = { items: StudentTask[]; total: number; limit: number; offset: number };
+export type StudentTask = Pick<Task, "id" | "title" | "description" | "topic" | "difficulty" | "task_type" | "estimated_time_minutes"> & { progress_status?: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" };
+export type CatalogFilters = { search: string; topic: string; difficulty: string; task_type: string; sort_by: string; sort_order: string; offset: number; progress_status?: string };
+export type StudentTaskList = { items: StudentTask[]; total: number; limit: number; offset: number; progress_counts?: Record<NonNullable<StudentTask["progress_status"]>, number> };
 export type StudentTaskDetail = StudentTask & Pick<Task, "theory" | "instructions" | "starter_code">;
 
 export async function getStudentTask(id: string, signal: AbortSignal): Promise<StudentTaskDetail> {
@@ -34,9 +34,9 @@ export type SolutionTestResult = {
   details?: { name: string; config: Record<string, unknown>; actual_output?: string; actual_result?: unknown; has_actual_result?: boolean; execution?: RunResult; message?: string };
 };
 export type CheckResult = { passed: number; total: number; all_passed: boolean; results: SolutionTestResult[] };
-export async function checkStudentSolution(id: number, source_code: string): Promise<CheckResult> {
+export async function checkStudentSolution(id: number, source_code: string, revision?: number): Promise<CheckResult> {
   const response = await apiFetch(`/student/tasks/${id}/check`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_code }),
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_code, revision }),
   });
   if (!response.ok) throw new TasksApiError(response.status === 503 ? "Usługa sprawdzania lub wybrana wersja Pythona jest niedostępna. Spróbuj ponownie później."
     : response.status === 504 ? "Przekroczono czas oczekiwania na sprawdzenie rozwiązania. Spróbuj ponownie."

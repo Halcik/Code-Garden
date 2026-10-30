@@ -9,12 +9,25 @@ import TaskBadges from "../components/TaskBadges";
 import StudentTaskHints from "../components/StudentTaskHints";
 import SolutionCheckResult, { SolutionCheckSummary } from "../components/SolutionCheckResult";
 import "../styles/student-task.css";
+import { useSolutionDraft } from "../components/useSolutionDraft";
+import { submitSolution } from "../api/solutions";
+import type { SubmissionSummary } from "../api/solutions";
+import SubmitConfirmation from "../components/SubmitConfirmation";
 
 const PythonCodeEditor = lazy(() => import("../components/PythonCodeEditor"));
 
 function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
   // The task owns the starter; only this mounted workspace owns the student's edits.
-  const [studentCode, setStudentCode] = useState(() => task.starter_code ?? "");
+  const work = useSolutionDraft(task.id);
+  const studentCode = work.code;
+  const setStudentCode = work.edit;
+  const [checkedCode, setCheckedCode] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const submitPending = useRef(false);
+  const [confirming, setConfirming] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState("");
+  const [submitError, setSubmitError] = useState("");
+  const [latest, setLatest] = useState<SubmissionSummary | null>(null);
   const [stdin, setStdin] = useState("");
   const [running, setRunning] = useState(false);
   const runPending = useRef(false);
@@ -25,11 +38,37 @@ function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
   const checkPending = useRef(false);
   const [checkError, setCheckError] = useState("");
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
+  const hydrated = useRef(false);
+  useEffect(() => {
+    if (work.draft && !hydrated.current) {
+      hydrated.current = true;
+      setCheckResult(work.draft.last_check);
+      setCheckedCode(work.draft.check_is_current ? work.draft.source_code : null);
+      setLatest(work.draft.latest_submission);
+    }
+  }, [work.draft]);
+  async function submit() {
+    if (submitPending.current) return;
+    submitPending.current = true; setSubmitting(true); setConfirming(false);
+    setSubmitError(""); setSubmitMessage("");
+    try {
+      const revision = await work.flush();
+      const value = await submitSolution(task.id, revision);
+      setLatest(value.submission); setCheckResult(value.draft.last_check);
+      setCheckedCode(value.draft.check_is_current ? value.draft.source_code : null);
+      setSubmitMessage(`Rozwiązanie zostało wysłane jako wersja ${value.submission.version}. ${value.submission.passed_tests}/${value.submission.total_tests} testów zaliczonych.`);
+    } catch (reason) {
+      setSubmitError(reason instanceof Error ? reason.message : "Nie udało się wysłać rozwiązania. Spróbuj ponownie.");
+    } finally { submitPending.current = false; setSubmitting(false); }
+  }
   async function check() {
     if (checkPending.current) return;
     checkPending.current = true;
     setChecking(true); setCheckError(""); setCheckResult(null);
-    try { setCheckResult(await checkStudentSolution(task.id, studentCode)); }
+    try {
+      const revision = await work.flush();
+      setCheckResult(await checkStudentSolution(task.id, studentCode, revision)); setCheckedCode(studentCode);
+    }
     catch (reason) {
       setCheckError(reason instanceof TasksApiError ? reason.message : "Nie udało się połączyć z usługą sprawdzania. Spróbuj ponownie.");
       if (reason instanceof TasksApiError && [401, 403].includes(reason.status)) retrySession();
@@ -52,8 +91,14 @@ function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
         <h1>{task.title}</h1><TaskBadges task={task} />
         <p className="student-task-time">{task.estimated_time_minutes == null ? "Czas nieokreślony" : `Szacowany czas: ~${task.estimated_time_minutes} min`}</p>
       </div>
-      <div className="student-task-actions"><button className="admin-button" disabled><span className="student-detail-icon" data-icon="save" aria-hidden="true" />Zapisz wersję roboczą</button><button className="admin-button primary" disabled><span className="student-detail-icon" data-icon="send" aria-hidden="true" />Wyślij rozwiązanie</button></div>
+      <div className="student-task-actions"><button className="admin-button" disabled={!work.draft} onClick={() => { void work.flush().catch(() => {}); }}><span className="student-detail-icon" data-icon="save" aria-hidden="true" />Zapisz wersję roboczą</button><button className="admin-button primary" disabled={!work.draft || submitting || checking} onClick={() => setConfirming(true)}><span className="student-detail-icon" data-icon="send" aria-hidden="true" />{submitting ? "Wysyłanie…" : "Wyślij rozwiązanie"}</button></div>
     </header>
+    {work.draft && work.status.startsWith("Nie udało się") && <p role="alert">{work.status}</p>}
+    {!work.draft && <button className="admin-button" onClick={work.retry}>Ponów wczytanie wersji roboczej</button>}
+    {confirming && <SubmitConfirmation confirm={() => { void submit(); }} cancel={() => setConfirming(false)} />}
+    {submitMessage && <p role="status">{submitMessage}</p>}
+    {submitError && <p role="alert">{submitError}</p>}
+    {latest && <p>Ostatnio wysłano: wersja {latest.version} — {latest.passed_tests}/{latest.total_tests} testów — {new Date(latest.submitted_at).toLocaleString("pl-PL")}</p>}
     <div className="student-task-workspace">
       <div className="student-task-materials">
         <section className="admin-card student-material-card" aria-labelledby="student-instructions-title" id="student-task-instructions">
@@ -68,13 +113,13 @@ function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
       <section className="student-coding-area" aria-label="Kod ucznia">
         <div className="student-code-panel">
           <div className="student-code-toolbar"><div><span className="student-detail-icon" data-icon="file" aria-hidden="true" /><span>solution.py</span><span className="student-code-language">Python</span></div><span>Twój kod</span></div>
-          <Suspense fallback={<p className="admin-state" role="status">Ładowanie edytora kodu…</p>}><PythonCodeEditor value={studentCode} onChange={setStudentCode} readOnly={false} height={360} ariaLabel="Twój kod Python" /></Suspense>
+          {work.draft ? <Suspense fallback={<p className="admin-state" role="status">Ładowanie edytora kodu…</p>}><PythonCodeEditor value={studentCode} onChange={setStudentCode} readOnly={!work.draft} height={360} ariaLabel="Twój kod Python" /></Suspense> : <p role="status">{work.status}</p>}
         </div>
         <div className="student-run-controls">
           <section className="admin-card student-input-card" aria-label="Dane wejściowe"><label htmlFor="student-stdin">Dane wejściowe</label><textarea id="student-stdin" value={stdin} onChange={event => setStdin(event.target.value)} placeholder="Tutaj podasz dane wejściowe programu" /></section>
           <div className="student-execution-actions">
-            <button className="admin-button primary" disabled={running} onClick={run}><span className="student-detail-icon" data-icon="play" aria-hidden="true" />{running ? "Uruchamianie…" : "Uruchom kod"}</button>
-            <button className="admin-button primary" disabled={checking} onClick={check}>{checking ? "Sprawdzanie…" : "Sprawdź rozwiązanie"}</button>
+            <button className="admin-button primary" disabled={running || !work.draft} onClick={run}><span className="student-detail-icon" data-icon="play" aria-hidden="true" />{running ? "Uruchamianie…" : "Uruchom kod"}</button>
+            <button className="admin-button primary" disabled={checking || submitting || !work.draft} onClick={check}>{checking ? "Sprawdzanie…" : "Sprawdź rozwiązanie"}</button>
           </div>
         </div>
         {runError && <p role="alert" className="error-message">{runError}</p>}
@@ -89,6 +134,7 @@ function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
             <div><h2 id="student-tests-title">Testy automatyczne</h2><p>{checking ? "Trwa sprawdzanie rozwiązania" : checkResult ? "Wynik ostatniego sprawdzenia" : "Sprawdź kod na testach zadania"}</p></div>
             {checkResult && <SolutionCheckSummary result={checkResult} />}
           </header>
+          {checkResult && checkedCode !== studentCode && <p role="status">Kod został zmieniony od ostatniego sprawdzenia.</p>}
           {checkError && <p role="alert" className="error-message">{checkError}</p>}
           <div aria-live="polite">{checking ? <p role="status">Oczekiwanie na wyniki testów…</p> : checkResult ? <SolutionCheckResult result={checkResult} /> : <p className="student-placeholder-copy">Sprawdź rozwiązanie, aby zobaczyć wyniki testów.</p>}</div>
           <footer className="solution-check-footer">

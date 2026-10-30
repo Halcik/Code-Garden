@@ -129,7 +129,7 @@ def test_hint_summary_returns_only_count_without_any_hint_content(client, detail
     authenticate(client, detail_data, "student")
     response = client.get(f"/student/tasks/{detail_data['ready']}/hints")
     assert response.status_code == 200
-    assert response.json() == {"total": 3}
+    assert response.json() == {"total": 3, "revealed": []}
     assert response.headers["cache-control"] == "no-store"
 
 
@@ -154,7 +154,7 @@ def test_hints_never_reveal_content_for_unavailable_tasks(client, detail_data, n
 
 def test_hint_queries_are_scoped_to_the_selected_task(client, detail_data):
     authenticate(client, detail_data, "student")
-    assert client.get(f"/student/tasks/{detail_data['other']}/hints").json() == {"total": 0}
+    assert client.get(f"/student/tasks/{detail_data['other']}/hints").json() == {"total": 0, "revealed": []}
     assert client.get(f"/student/tasks/{detail_data['other']}/hints/1").status_code == 404
 
 
