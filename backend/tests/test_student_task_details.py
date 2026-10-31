@@ -129,13 +129,14 @@ def test_hint_summary_returns_only_count_without_any_hint_content(client, detail
     authenticate(client, detail_data, "student")
     response = client.get(f"/student/tasks/{detail_data['ready']}/hints")
     assert response.status_code == 200
-    assert response.json() == {"total": 3}
+    assert response.json() == {"total": 3, "revealed": []}
     assert response.headers["cache-control"] == "no-store"
 
 
 def test_hints_are_revealed_individually_in_teacher_order_even_with_position_gaps(client, detail_data):
     authenticate(client, detail_data, "student")
     for number, title, content in [(1, "Secret hint", "Secret solution"), (2, "Second hint", "Second content"), (3, "Last hint", "Last content")]:
+        assert client.post(f"/student/tasks/{detail_data['ready']}/hints/{number}/reveal").status_code == 200
         response = client.get(f"/student/tasks/{detail_data['ready']}/hints/{number}")
         assert response.status_code == 200
         assert response.json() == {"number": number, "title": title, "content": content}
@@ -154,7 +155,7 @@ def test_hints_never_reveal_content_for_unavailable_tasks(client, detail_data, n
 
 def test_hint_queries_are_scoped_to_the_selected_task(client, detail_data):
     authenticate(client, detail_data, "student")
-    assert client.get(f"/student/tasks/{detail_data['other']}/hints").json() == {"total": 0}
+    assert client.get(f"/student/tasks/{detail_data['other']}/hints").json() == {"total": 0, "revealed": []}
     assert client.get(f"/student/tasks/{detail_data['other']}/hints/1").status_code == 404
 
 
@@ -172,4 +173,5 @@ def test_student_hints_do_not_expose_teacher_mutations(client, detail_data):
     assert client.post(path, json={"title": "X", "content": "Y"}).status_code == 405
     assert client.patch(path + "/1", json={"content": "Changed"}).status_code == 405
     assert client.delete(path + "/1").status_code == 405
+    assert client.post(path + "/1/reveal").status_code == 200
     assert client.get(path + "/1").json()["content"] == "Secret solution"

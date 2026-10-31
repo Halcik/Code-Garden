@@ -287,18 +287,57 @@ it("keeps assigned information visible for no results and recovers through empty
   expect(assignedSection()).toBeTruthy();
 });
 
-it("keeps all progress placeholders disabled and leaves the current view unchanged", async () => {
+it("filters progress on the backend and resets pagination", async () => {
+  mount(); await loaded(); await nextPage();
+  const tabs = within(screen.getByRole("group", { name: "Widok zadań" }));
+  for (const [name, status] of [["Nierozpoczęte", "NOT_STARTED"], ["W toku", "IN_PROGRESS"], ["Ukończone", "COMPLETED"]]) {
+    const button = tabs.getByRole("button", { name: new RegExp(`^${name}(?: |$)`) }) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    fireEvent.click(button);
+    await loaded();
+    expect(requests().at(-1)?.get("progress_status")).toBe(status);
+    expect(requests().at(-1)?.get("offset")).toBe("0");
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+  }
+  fireEvent.click(tabs.getByRole("button", { name: /^Wszystkie/ }));
+  await loaded();
+  expect(requests().at(-1)?.has("progress_status")).toBe(false);
+  expect((tabs.getByRole("button", { name: "Po terminie" }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it("shows each student's progress on task cards", async () => {
+  vi.mocked(apiFetch).mockResolvedValue(Response.json({ total: 3, limit: 24, offset: 0, items: [
+    { ...task, id: 1, progress_status: "NOT_STARTED" },
+    { ...task, id: 2, progress_status: "IN_PROGRESS" },
+    { ...task, id: 3, progress_status: "COMPLETED" },
+  ] }));
+  mount();
+  await waitFor(() => expect(document.querySelectorAll(".student-task-card")).toHaveLength(3));
+  expect([...document.querySelectorAll(".student-progress-badge")].map(node => node.textContent)).toEqual(["Nierozpoczęte", "W toku", "Ukończone"]);
+});
+it("shows full progress counts even while filtering a paginated list", async () => {
+  vi.mocked(apiFetch).mockResolvedValue(Response.json({ items: [task], total: 49, limit: 24, offset: 0,
+    progress_counts: { NOT_STARTED: 30, IN_PROGRESS: 12, COMPLETED: 7 } }));
   mount(); await loaded();
   const tabs = within(screen.getByRole("group", { name: "Widok zadań" }));
-  const count = requests().length;
-  for (const name of ["Nierozpoczęte", "W toku", "Ukończone", "Po terminie"]) {
-    const button = tabs.getByRole("button", { name }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
-    expect(document.getElementById(button.getAttribute("aria-describedby")!)?.textContent).toContain("będą dostępne wkrótce");
-    fireEvent.click(button);
-  }
-  expect(tabs.getByRole("button", { name: /^Wszystkie/ }).getAttribute("aria-pressed")).toBe("true");
-  expect(assignedSection()).toBeTruthy();
-  expect(screen.getByRole("link", { name: task.title })).toBeTruthy();
-  expect(requests()).toHaveLength(count);
+  expect(tabs.getByRole("button", { name: "W toku 12" })).toBeTruthy();
+  expect(tabs.getByRole("button", { name: "Ukończone 7" })).toBeTruthy();
+  expect(tabs.getByRole("button", { name: "Nierozpoczęte 30" })).toBeTruthy();
+  vi.mocked(apiFetch).mockResolvedValue(Response.json({ items: [task], total: 7, limit: 24, offset: 0,
+    progress_counts: { NOT_STARTED: 30, IN_PROGRESS: 12, COMPLETED: 7 } }));
+  fireEvent.click(tabs.getByRole("button", { name: "Ukończone 7" }));
+  await loaded();
+  expect(tabs.getByRole("button", { name: "Wszystkie 49" })).toBeTruthy();
+  expect(tabs.getByRole("button", { name: "Z katalogu 49" })).toBeTruthy();
+  expect(tabs.getByRole("button", { name: "W toku 12" })).toBeTruthy();
+});
+
+it("omits zero progress counts while keeping positive counts separated from their labels", async () => {
+  vi.mocked(apiFetch).mockResolvedValue(Response.json({ items: [task], total: 7, limit: 24, offset: 0,
+    progress_counts: { NOT_STARTED: 0, IN_PROGRESS: 0, COMPLETED: 7 } }));
+  mount(); await loaded();
+  const tabs = within(screen.getByRole("group", { name: "Widok zadań" }));
+  expect(tabs.getByRole("button", { name: "Nierozpoczęte" }).querySelector(".student-view-count")).toBeNull();
+  expect(tabs.getByRole("button", { name: "W toku" }).querySelector(".student-view-count")).toBeNull();
+  expect(tabs.getByRole("button", { name: "Ukończone 7" })).toBeTruthy();
 });

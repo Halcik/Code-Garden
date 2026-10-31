@@ -115,3 +115,13 @@ summary.solution-test-row:focus-visible { outline: 2px solid var(--color-catalog
 :root:not([data-theme="dark"]) .student-output-header .execution-state.is-error { color: var(--color-error); }
 :root:not([data-theme="dark"]) .execution-explanation { color: #7a271a; }
 :root:not([data-theme="dark"]) .execution-explanation img { filter: brightness(0.55); }
+.student-submit-dialog {
+  width: min(32rem, calc(100vw - 3rem));
+  padding: 1.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.student-submit-dialog::backdrop { background: rgb(0 0 0 / 45%); }
+.student-submit-dialog .student-task-actions { margin-top: 16px; }

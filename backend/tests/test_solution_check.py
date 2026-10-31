@@ -17,7 +17,7 @@ from test_execution import endpoint, settings
 
 
 def item(kind="INPUT_OUTPUT", config=None, hidden=False, position=1):
-    return SimpleNamespace(name="SECRET name" if hidden else "Example", test_type=kind,
+    return SimpleNamespace(id=position, name="SECRET name" if hidden else "Example", test_type=kind,
         config=config or {"input_data": "SECRET input", "expected_output": "SECRET expected"},
         is_hidden=hidden, position=position)
 
@@ -207,10 +207,33 @@ def test_structural_analyzer_failure_is_technical_not_student_failure(output, co
     assert "SECRET" not in error.value.message
 
 
+endpoint_patches = []
+
+@pytest.fixture(autouse=True)
+def close_endpoint_patches():
+    yield
+    while endpoint_patches:
+        endpoint_patches.pop().close()
+
+
 def prepare_endpoint(endpoint):
     client, user, db, runner = endpoint
     db.scalars = lambda query: [item(config={"input_data": "hi", "expected_output": "hello"}), item(hidden=True)]
     runner.execution_deadline = lambda cpu: 10
+    # This unit fixture exercises checker transport; persistence is covered with PostgreSQL.
+    from unittest.mock import patch
+    from contextlib import ExitStack
+    from app.services import solutions
+    user.id = 1
+    draft = SimpleNamespace(id=1, check_count=0)
+    db.commit = lambda: None
+    stack = ExitStack()
+    stack.enter_context(patch.object(solutions, "draft_for", return_value=draft))
+    stack.enter_context(patch.object(solutions, "save_code", return_value=draft))
+    stack.enter_context(patch.object(solutions, "locked_draft", return_value=draft))
+    stack.enter_context(patch.object(solutions, "store_check"))
+    # test client lives until fixture teardown
+    endpoint_patches.append(stack)
     return client, user, db, runner
 
 

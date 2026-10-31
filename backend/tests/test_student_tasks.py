@@ -51,7 +51,8 @@ def test_catalog_visibility_and_response(client, catalog_users):
     data = response.json()
     assert data["total"] == 2
     assert [item["title"] for item in data["items"]] == ["Alpha_100%", "Beta"]
-    assert set(data["items"][0]) == {"id", "title", "description", "topic", "difficulty", "task_type", "estimated_time_minutes"}
+    assert set(data["items"][0]) == {"id", "title", "description", "topic", "difficulty", "task_type", "estimated_time_minutes", "progress_status"}
+    assert all(item["progress_status"] == "NOT_STARTED" for item in data["items"])
 
 
 @pytest.mark.parametrize("params,titles", [
@@ -75,3 +76,47 @@ def test_catalog_query(client, catalog_users, params, titles):
 def test_catalog_validation(client, catalog_users, params):
     authenticate(client, catalog_users, "STUDENT")
     assert client.get("/student/tasks", params=params).status_code == 422
+
+
+@pytest.mark.parametrize("status", [None, "NOT_STARTED", "IN_PROGRESS", "COMPLETED"])
+def test_personal_progress_filters_and_pagination(client, catalog_users, db_engine, status):
+    from app.models.solution import SolutionDraft, Submission
+    topic = f"Progress {status}"
+    ids = {}
+    with Session(db_engine) as db:
+        other = User(login=f"other_progress_{status}", email=f"other_progress_{status}@example.com",
+                     password_hash="unused", role=UserRole.STUDENT)
+        db.add(other); db.flush()
+        for state in ("NOT_STARTED", "IN_PROGRESS", "COMPLETED"):
+            task = Task(title=state, topic=topic, author_id=catalog_users["TEACHER"],
+                        difficulty=TaskDifficulty.EASY, task_type=TaskType.STANDARD, status=TaskStatus.READY)
+            db.add(task); db.flush(); ids[state] = task.id
+            if state != "NOT_STARTED":
+                db.add(SolutionDraft(student_id=catalog_users["STUDENT"], task_id=task.id, source_code="newer draft"))
+            # Failed submissions still count as completed. Another student's submission does not.
+            if state != "IN_PROGRESS":
+                db.add(Submission(student_id=catalog_users["STUDENT"] if state == "COMPLETED" else other.id,
+                    task_id=task.id, version=1, source_code="old code", summary={"passed_tests": 0,
+                    "failed_tests": 2, "total_tests": 2, "all_passed": False}))
+        db.commit()
+    authenticate(client, catalog_users, "STUDENT")
+    params = {"topic": topic, "limit": 1, "sort_by": "title", "sort_order": "asc"}
+    if status: params["progress_status"] = status
+    response = client.get("/student/tasks", params=params)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == (1 if status else 3)
+    assert data["progress_counts"] == {"NOT_STARTED": 1, "IN_PROGRESS": 1, "COMPLETED": 1}
+    assert len(data["items"]) == 1
+    if status:
+        assert data["items"][0]["id"] == ids[status]
+        assert data["items"][0]["progress_status"] == status
+    else:
+        params["limit"] = 24
+        items = client.get("/student/tasks", params=params).json()["items"]
+        assert {item["id"]: item["progress_status"] for item in items} == {value: key for key, value in ids.items()}
+
+
+def test_unknown_progress_filter_is_rejected(client, catalog_users):
+    authenticate(client, catalog_users, "STUDENT")
+    assert client.get("/student/tasks?progress_status=UNKNOWN").status_code == 422
