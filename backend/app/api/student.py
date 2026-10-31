@@ -79,7 +79,8 @@ def student_hint_summary(task_id: int, response: Response, db: Session = Depends
 
 
 @router.get("/tasks/{task_id}/hints/{number}", response_model=StudentHintResponse)
-def get_student_hint(task_id: int, number: int, response: Response, db: Session = Depends(get_db)):
+def get_student_hint(task_id: int, number: int, response: Response, db: Session = Depends(get_db),
+                     user: User = Depends(get_current_user)):
     available_student_task(db, task_id, response)
     if number < 1:
         raise HTTPException(404, "Hint not found", headers={"Cache-Control": "no-store"})
@@ -87,6 +88,12 @@ def get_student_hint(task_id: int, number: int, response: Response, db: Session 
     hint = db.scalar(select(TaskHint).where(TaskHint.task_id == task_id)
                      .order_by(TaskHint.position, TaskHint.id).offset(number - 1).limit(1))
     if hint is None:
+        raise HTTPException(404, "Hint not found", headers={"Cache-Control": "no-store"})
+    # Reading must never bypass explicit reveal or create usage as a GET side effect.
+    used = db.scalar(select(DraftUsedHint.id).join(SolutionDraft).where(
+        SolutionDraft.student_id == user.id, SolutionDraft.task_id == task_id,
+        DraftUsedHint.hint_id == hint.id))
+    if used is None:
         raise HTTPException(404, "Hint not found", headers={"Cache-Control": "no-store"})
     return {"number": number, "title": hint.title, "content": hint.content}
 

@@ -72,7 +72,7 @@ def test_draft_initialization_updates_and_starter_changes(client, work, actors, 
 def test_hint_reveal_is_explicit_idempotent_and_ordered(client, work, db_engine):
     path, _, _ = work
     assert client.get(path + "/hints").json()['revealed'] == []
-    assert client.get(path + "/hints/1").status_code == 200
+    assert client.get(path + "/hints/1").status_code == 404
     assert client.get(path + "/draft").json()['used_hints'] == []
     for n in (2, 1, 2):
         assert client.post(path + f"/hints/{n}/reveal").status_code == 200
@@ -84,6 +84,70 @@ def test_hint_reveal_is_explicit_idempotent_and_ordered(client, work, db_engine)
         ids = [h.hint_id for h in db.scalars(select(DraftUsedHint).where(DraftUsedHint.draft_id == client.get(path + '/draft').json()['id']).order_by(DraftUsedHint.id))]
         assert ids == [h['hint_id'] for h in hints]
     assert client.post(path + "/hints/0/reveal").status_code == 404
+
+
+def test_all_hint_reads_require_recorded_reveal_and_submission_snapshots_it(client, work, db_engine):
+    path, task_id, _ = work
+    for number in range(1, 4):
+        response = client.get(path + f'/hints/{number}')
+        assert response.status_code == 404
+        assert response.json() == {'detail': 'Hint not found'}
+        assert response.headers['cache-control'] == 'no-store'
+    with Session(db_engine) as db:
+        assert db.scalar(select(func.count()).select_from(SolutionDraft).where(SolutionDraft.task_id == task_id)) == 0
+    assert client.get(path + '/hints').json()['revealed'] == []
+    assert client.get(path + '/revealed-hints').json() == []
+    assert 'Content' not in client.get(path).text
+    assert 'Content' not in client.get(path + '/draft').text
+
+    reveal = client.post(path + '/hints/2/reveal')
+    assert reveal.status_code == 200
+    before = client.get(path + '/draft').json()['used_hints']
+    assert len(before) == 1
+    for _ in range(2):
+        assert client.get(path + '/hints/2').json() == reveal.json()
+        assert client.get(path + '/hints').json()['revealed'] == [reveal.json()]
+        assert client.get(path + '/revealed-hints').json() == [reveal.json()]
+        for number in (1, 3):
+            assert client.get(path + f'/hints/{number}').status_code == 404
+    assert client.get(path + '/draft').json()['used_hints'] == before
+    response = submit(client, path)
+    assert response.status_code == 201
+    with Session(db_engine) as db:
+        hints = list(db.scalars(select(SubmissionUsedHint).where(
+            SubmissionUsedHint.submission_id == response.json()['submission']['id'])))
+        assert len(hints) == 1
+        assert hints[0].hint_id == before[0]['hint_id'] and hints[0].reveal_order == 1
+        assert hints[0].revealed_at.isoformat() == before[0]['revealed_at']
+
+
+def test_another_students_reveal_does_not_unlock_hint_reads(client, work, actors, db_engine):
+    from app.core.config import get_settings
+    from app.core.security import create_access_token
+    path, task_id, _ = work
+    assert client.post(path + '/hints/1/reveal').status_code == 200
+    with Session(db_engine) as db:
+        user = User(login=f'hint_reader_{task_id}', email=f'hint_reader_{task_id}@example.com',
+                    role=UserRole.STUDENT, password_hash='unused')
+        db.add(user); db.commit(); user_id = user.id
+    client.cookies.clear()
+    client.cookies.set(get_settings().cookie_name, create_access_token(user_id))
+    assert client.get(path + '/hints/1').status_code == 404
+    assert client.get(path + '/hints').json()['revealed'] == []
+    assert client.get(path + '/revealed-hints').json() == []
+    login(client, actors, 'STUDENT')
+    assert client.get(path + '/hints/1').status_code == 200
+
+
+def test_reorder_does_not_unlock_unrevealed_hint_by_old_number(client, work, db_engine):
+    path, task_id, _ = work
+    revealed = client.post(path + '/hints/1/reveal').json()
+    with Session(db_engine) as db:
+        hints = list(db.scalars(select(TaskHint).where(TaskHint.task_id == task_id).order_by(TaskHint.position)))
+        hints[0].position, hints[1].position = hints[1].position, hints[0].position
+        db.commit()
+    assert client.get(path + '/hints/1').status_code == 404
+    assert client.get(path + '/hints/2').json() == {**revealed, 'number': 2}
 
 
 def test_check_persists_code_hash_results_and_staleness(client, work):

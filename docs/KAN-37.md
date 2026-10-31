@@ -31,7 +31,7 @@ Wszystkie ścieżki poniżej zaczynają się od `/student/tasks/{task_id}`. Dost
 | GET `/draft` | Pobranie lub inicjalizacja draftu. Zwraca także ostatni check, aktualność, użyte hinty i podsumowanie ostatniego submission. |
 | PUT `/draft` | `{source_code, revision?}`. Aktualizacja istniejącego rekordu; konflikt podanej rewizji daje 409. |
 | GET `/hints` | Liczba podpowiedzi i wcześniej odkryte podpowiedzi (`revealed`). Sam odczyt nie zapisuje użycia. |
-| GET `/hints/{number}` | Dotychczasowy odczyt jednej podpowiedzi; sam nie zmienia stanu użycia. |
+| GET `/hints/{number}` | Odczyt wyłącznie podpowiedzi już odkrytej przez zalogowanego ucznia w tym zadaniu. Przed POST `/reveal` zwraca 404 bez treści. GET nie tworzy draftu ani użycia. |
 | POST `/hints/{number}/reveal` | Jawne, idempotentne zapisanie użycia i zwrócenie podpowiedzi. Numer jest aktualnym numerem w kolejności nauczyciela; zapis używa ID hintu. |
 | GET `/revealed-hints` | Wyłącznie wcześniej odkryte podpowiedzi zalogowanego ucznia. |
 | POST `/check` | Istniejący checker KAN-34/35; `{source_code, revision?}`. Wynik trafia do draftu, bez submission. |
