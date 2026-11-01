@@ -6,6 +6,8 @@ from app.db.base import Base
 from app.models.user import User  # noqa: F401; registers model metadata
 from app.models.task import Task, TaskTest  # noqa: F401
 
+from app.models import solution  # noqa: F401
+
 target_metadata = Base.metadata
 url = get_settings().database_url
 

@@ -29,7 +29,7 @@ function HintSession({ taskId }: { taskId: number }) {
     const controller = new AbortController();
     setLoading(true); setError("");
     getHintSummary(taskId, controller.signal).then(result => {
-      if (!controller.signal.aborted) setTotal(result.total);
+      if (!controller.signal.aborted) { setTotal(result.total); setHints(result.revealed ?? []); }
     }).catch(reason => { if (!controller.signal.aborted) report(reason); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
@@ -44,7 +44,7 @@ function HintSession({ taskId }: { taskId: number }) {
     revealRequest.current = controller;
     setRevealing(true); setError("");
     try {
-      const hint = await getStudentHint(taskId, hints.length + 1, controller.signal);
+      const hint = await getStudentHint(taskId, Array.from({ length: total }, (_, i) => i + 1).find(n => !hints.some(h => h.number === n))!, controller.signal);
       if (!controller.signal.aborted) setHints(previous => [...previous, hint]);
     } catch (reason) { if (!controller.signal.aborted) report(reason); }
     finally {

@@ -8,6 +8,7 @@ from app.schemas.execution import RunRequest, RunResponse
 class CheckRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     source_code: str = Field(min_length=1, max_length=102400)
+    revision: int | None = Field(default=None, ge=0)
 
     # Share the UTF-8 byte limit with local execution, without accepting stdin.
     def model_post_init(self, context):

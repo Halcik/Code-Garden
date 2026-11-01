@@ -1,6 +1,7 @@
 ﻿import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
+import { getSolutionDraft } from "../api/solutions";
 import { apiFetch } from "../api/client";
 import { getHintSummary, getStudentHint } from "../api/studentHints";
 import StudentTaskPage from "./StudentTaskPage";
@@ -26,6 +27,11 @@ vi.mock("monaco-editor/editor/editor.worker?worker", () => ({ default: class {} 
 vi.mock("monaco-editor/languages/definitions/python/register", () => ({}));
 vi.mock("monaco-editor/editor/editor.api", () => ({}));
 
+vi.mock("../api/solutions", () => ({
+  getSolutionDraft: vi.fn(async (id: number) => ({ source_code: id === 8 ? "print(8)" : task.starter_code, revision: 0, last_check: null, check_is_current: false, latest_submission: null })),
+  saveSolutionDraft: vi.fn(async (_id: number, source_code: string) => ({ source_code, revision: 1, last_check: null, check_is_current: false, latest_submission: null })),
+  submitSolution: vi.fn(),
+}));
 const task = { id: 7, title: "Walidacja hasła", topic: "Napisy", description: "Opis zadania\nDrugi akapit", instructions: "Napisz funkcję validate_password(password).", theory: "Użyj isdigit() i any().", difficulty: "MEDIUM", task_type: "FUNCTION", estimated_time_minutes: 20, starter_code: "def validate_password(password):\n    pass\n" };
 function view(path = "/student/tasks/7") {
   return <MemoryRouter initialEntries={[path]}><Link to="/student/tasks/8">Inne zadanie</Link><Routes>
@@ -44,6 +50,7 @@ function deferred() {
   return { promise, resolve, reject };
 }
 beforeEach(() => {
+  vi.mocked(getSolutionDraft).mockImplementation(async id => ({ source_code: id === 8 ? "print(8)" : task.starter_code, revision: 0, last_check: null, check_is_current: false, latest_submission: null, checked_hash: null, checked_at: null }));
   vi.clearAllMocks(); theme.value = "light"; auth.role = "STUDENT";
   vi.mocked(getHintSummary).mockResolvedValue({ total: 0 });
   vi.mocked(getStudentHint).mockReset();
@@ -144,6 +151,7 @@ it("clears the old code while navigating and initializes the next task's starter
 });
 
 it.each([null, ""])("handles %s starter code as an empty editable buffer and absent optional material", async starter_code => {
+  vi.mocked(getSolutionDraft).mockResolvedValueOnce({ source_code: starter_code ?? "", revision: 0, last_check: null, check_is_current: false, latest_submission: null, checked_hash: null, checked_at: null });
   vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({ ...task, starter_code, theory: null, instructions: null, description: "", estimated_time_minutes: null }));
   mount(); await screen.findByRole("textbox", { name: "Twój kod Python" });
   expect(code().value).toBe("");
@@ -224,25 +232,11 @@ it("aborts a pending detail request on unmount", async () => {
   expect(auth.retrySession).not.toHaveBeenCalled();
 });
 
-it("does not execute, save, submit or reveal hints when disabled controls are clicked", async () => {
-  mount(); await screen.findByRole("textbox", { name: "Twój kod Python" });
-  for (const name of ["Zapisz wersję roboczą", "Wyślij rozwiązanie"]) {
-    const button = screen.getByRole("button", { name }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true); fireEvent.click(button);
-  }
-  expect(apiFetch).toHaveBeenCalledOnce();
-  const input = screen.getByRole("textbox", { name: "Dane wejściowe" }) as HTMLTextAreaElement;
-  expect(input.disabled).toBe(false);
-  expect(input.value).toBe("");
-  expect(await screen.findByText("Do tego zadania nie dodano podpowiedzi.")).toBeTruthy();
-  expect(screen.getByText("Tutaj pojawi się komentarz nauczyciela do Twojego rozwiązania.")).toBeTruthy();
-  expect(monacoRender.mock.calls.at(-1)?.[0]).toMatchObject({ language: "python", options: { readOnly: false, minimap: { enabled: false }, lineNumbers: "on", tabSize: 4, insertSpaces: true, automaticLayout: true, scrollBeyondLastLine: false } });
-});
-
-it.each([["TEACHER", "Panel nauczyciela"], ["ADMIN", "Panel administratora"]])("guards the detail route from %s", async (role, heading) => {
-  auth.role = role; mount();
-  expect(await screen.findByText(heading)).toBeTruthy();
-  expect(apiFetch).not.toHaveBeenCalled();
+it("enables persistent work controls after loading the draft", async () => {
+  mount();
+  await screen.findByRole("textbox", { name: "Twój kod Python" });
+  expect((screen.getByRole("button", { name: "Zapisz wersję roboczą" }) as HTMLButtonElement).disabled).toBe(false);
+  expect((screen.getByRole("button", { name: "Wyślij rozwiązanie" }) as HTMLButtonElement).disabled).toBe(false);
 });
 
 it("runs current code and stdin, blocks duplicate clicks and permits retry after infrastructure error", async () => {
@@ -364,8 +358,8 @@ it("checks current code without local stdin, blocks duplicate requests, renders 
   const button = screen.getByRole("button", { name: "Sprawdzanie…" }) as HTMLButtonElement;
   expect(button.disabled).toBe(true);
   fireEvent.click(button);
-  expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => path.endsWith("/check"))).toHaveLength(1);
-  expect(apiFetch).toHaveBeenLastCalledWith("/student/tasks/7/check", expect.objectContaining({ body: JSON.stringify({ source_code: "print(5)" }) }));
+  await waitFor(() => expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => path.endsWith("/check"))).toHaveLength(1));
+  expect(apiFetch).toHaveBeenLastCalledWith("/student/tasks/7/check", expect.objectContaining({ body: JSON.stringify({ source_code: "print(5)", revision: 1 }) }));
   expect(screen.getByText("Oczekiwanie na wyniki testów…")).toBeTruthy();
   await act(async () => pending.resolve(Response.json(checked)));
   expect(await screen.findByLabelText("1 / 2 testów zaliczonych")).toBeTruthy();

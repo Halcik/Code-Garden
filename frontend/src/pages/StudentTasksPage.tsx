@@ -14,6 +14,7 @@ import "../styles/admin-users.css";
 import "../styles/student-tasks.css";
 
 const initial: CatalogFilters = { search: "", topic: "", difficulty: "", task_type: "", sort_by: "created_at", sort_order: "desc", offset: 0 };
+const progressLabels = { NOT_STARTED: "Nierozpoczęte", IN_PROGRESS: "W toku", COMPLETED: "Ukończone" };
 
 export function StudentLayout() {
   const { user } = useAuth();
@@ -57,15 +58,19 @@ export default function StudentTasksPage() {
   }, [filters, attempt, retrySession]);
   function change(key: string, value: string) { setFilters(previous => ({ ...previous, [key]: value, offset: 0 })); }
   function reset() { setSearch(""); setTopic(""); setFilters(initial); }
+  const catalogCount = data?.progress_counts ? Object.values(data.progress_counts).reduce((sum, count) => sum + count, 0) : data?.total;
   return <>
     <div className="admin-page-heading student-heading"><div><h1>Zadania</h1><p>Ćwicz we własnym tempie i odkrywaj zadania z różnych zagadnień programowania.</p></div></div>
     <div className="admin-card student-view-tabs" role="group" aria-label="Widok zadań">
-      <button type="button" aria-pressed={view === "all"} onClick={() => setView("all")}>Wszystkie <span className="student-view-count">{loading ? "…" : data?.total ?? "—"}</span></button>
-      <button type="button" aria-pressed={view === "assigned"} onClick={() => setView("assigned")}>Przypisane</button>
-      <button type="button" aria-pressed={view === "catalog"} onClick={() => setView("catalog")}>Z katalogu <span className="student-view-count">{loading ? "…" : data?.total ?? "—"}</span></button>
-      {["Nierozpoczęte", "W toku", "Ukończone", "Po terminie"].map(label => <button key={label} type="button" disabled title="Filtrowanie według postępu i terminów będzie dostępne wkrótce" aria-describedby="student-progress-note">{label}</button>)}
+      <button type="button" aria-pressed={view === "all" && !filters.progress_status} onClick={() => { setView("all"); if (filters.progress_status) change("progress_status", ""); }}>Wszystkie <span className="student-view-count">{loading ? "…" : catalogCount ?? "—"}</span></button>
+      <button type="button" aria-pressed={view === "assigned"} onClick={() => { setView("assigned"); if (filters.progress_status) change("progress_status", ""); }}>Przypisane</button>
+      <button type="button" aria-pressed={view === "catalog"} onClick={() => { setView("catalog"); if (filters.progress_status) change("progress_status", ""); }}>Z katalogu <span className="student-view-count">{loading ? "…" : catalogCount ?? "—"}</span></button>
+      {Object.entries(progressLabels).map(([status, label]) => {
+        const count = data?.progress_counts?.[status as keyof typeof progressLabels];
+        return <button key={status} type="button" aria-pressed={filters.progress_status === status} onClick={() => { setView("all"); change("progress_status", status); }}>{label}{(loading || (count != null && count > 0)) && <> <span className="student-view-count">{loading ? "…" : count}</span></>}</button>;
+      })}
+      <button type="button" disabled title="Filtrowanie według terminów będzie dostępne wkrótce">Po terminie</button>
     </div>
-    <p className="student-progress-note" id="student-progress-note">Filtry postępu i terminu będą dostępne wkrótce.</p>
     {view !== "assigned" &&
     <div className="admin-card student-filters" role="search" aria-label="Filtry katalogu zadań">
       <label className="student-search">Wyszukaj<input maxLength={200} placeholder="Szukaj po tytule" value={search} onChange={event => setSearch(event.target.value)} /></label>
@@ -88,7 +93,13 @@ export default function StudentTasksPage() {
         : error ? <div className="admin-card admin-state" role="alert"><p className="error-message">{error}</p><button className="admin-button" onClick={() => setAttempt(value => value + 1)}>Spróbuj ponownie</button></div>
         : !data?.items.length ? <div className="admin-card admin-state" role="status"><h2>Brak zadań</h2><p>Nie znaleziono dostępnych zadań. Zmień lub wyczyść filtry.</p><button className="admin-button" onClick={reset}>Wyczyść filtry</button></div>
         : <><div className="student-task-grid">{data.items.map(task => <article className="admin-card student-task-card" key={task.id}>
-          <span className="student-topic-icon"><span aria-hidden="true" style={{ maskImage: `url("${codeIcon}")` }} /></span>
+          <div className="student-card-heading">
+            <span className="student-topic-icon"><span aria-hidden="true" style={{ maskImage: `url("${codeIcon}")` }} /></span>
+            <span className="student-progress-badge" data-progress={task.progress_status ?? "NOT_STARTED"} title={task.progress_status === "COMPLETED" ? "Rozwiązanie wysłane — oczekuje na sprawdzenie przez nauczyciela" : undefined}>
+              {task.progress_status === "COMPLETED" && <svg className="student-completion-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>}
+              {progressLabels[task.progress_status ?? "NOT_STARTED"]}
+            </span>
+          </div>
           <h2><Link to={`/student/tasks/${task.id}`}>{task.title}</Link></h2><p className="student-description">{task.description}</p>
           <TaskBadges task={task} />
           <div className="student-card-footer"><span>{task.estimated_time_minutes == null ? "Czas nieokreślony" : `~${task.estimated_time_minutes} min`}</span><Link className="admin-button" to={`/student/tasks/${task.id}`}>Zobacz zadanie</Link></div>

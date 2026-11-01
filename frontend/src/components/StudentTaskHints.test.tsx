@@ -17,7 +17,7 @@ function deferred() {
 function paths() { return vi.mocked(apiFetch).mock.calls.map(([path]) => path); }
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.mocked(apiFetch).mockImplementation(async path => Response.json(path.endsWith("/hints") ? { total: 2 } : path.endsWith("/1") ? first : second));
+  vi.mocked(apiFetch).mockImplementation(async path => Response.json(path.endsWith("/hints") ? { total: 2 } : path.endsWith("/1/reveal") ? first : second));
 });
 afterEach(cleanup);
 
@@ -38,7 +38,7 @@ it("loads only the count and reveals one hint per click in teacher order", async
   expect(screen.getByText(first.content)).toBeTruthy();
   expect(screen.getByText("Użyj pętli. Potem zwróć wynik.").textContent).toBe(second.content);
   expect(screen.queryByRole("button")).toBeNull();
-  expect(paths()).toEqual(["/student/tasks/7/hints", "/student/tasks/7/hints/1", "/student/tasks/7/hints/2"]);
+  expect(paths()).toEqual(["/student/tasks/7/hints", "/student/tasks/7/hints/1/reveal", "/student/tasks/7/hints/2/reveal"]);
 });
 
 it("handles no hints without a reveal button", async () => {
@@ -92,7 +92,7 @@ it("retries a failed reveal without advancing the counter or losing prior hints"
   expect(screen.getByText("Wykorzystane podpowiedzi: 1 z 2")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Spróbuj ponownie" }));
   await screen.findByText("Wszystkie podpowiedzi zostały wyświetlone.");
-  expect(paths().slice(-2)).toEqual(["/student/tasks/7/hints/2", "/student/tasks/7/hints/2"]);
+  expect(paths().slice(-2)).toEqual(["/student/tasks/7/hints/2/reveal", "/student/tasks/7/hints/2/reveal"]);
 });
 
 it.each([401, 403, 404])("handles count HTTP %s without leaking any hint", async status => {

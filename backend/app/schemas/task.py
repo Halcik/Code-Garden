@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -55,11 +56,22 @@ class StudentTaskDetail(StudentTaskResponse):
     starter_code: str | None
 
 
+class StudentCatalogTask(StudentTaskResponse):
+    progress_status: Literal["NOT_STARTED", "IN_PROGRESS", "COMPLETED"]
+
+
+class StudentProgressCounts(BaseModel):
+    NOT_STARTED: int
+    IN_PROGRESS: int
+    COMPLETED: int
+
+
 class StudentTaskList(BaseModel):
-    items: list[StudentTaskResponse]
+    items: list[StudentCatalogTask]
     total: int
     limit: int
     offset: int
+    progress_counts: StudentProgressCounts
 
 
 class TaskCreate(BaseModel):
