@@ -203,16 +203,17 @@ async def submit_solution(task_id: int, payload: SubmitRequest, response: Respon
         raise HTTPException(422, "Source code must contain between 1 byte and 100 KB") from None
     hints = [dict(hint_id=h.hint_id, revealed_at=h.revealed_at, reveal_order=n)
              for n, h in enumerate(solutions.used_hints(db, draft_id), 1)]
+    total_hints = len(list(db.scalars(select(TaskHint.id).where(TaskHint.task_id == task_id))))
     # Do not keep a row lock or database transaction open during remote execution.
     db.commit()
     try:
-        result = await check_solution(runtime, tests, source, service)
+        result = await check_solution(runtime, tests, source, service, include_hidden_details=True)
     except Judge0Error as exc:
         raise HTTPException(exc.status_code, exc.message, headers={"Cache-Control": "no-store"}) from None
     try:
         draft = solutions.locked_draft(db, draft_id)
         submission = Submission(student_id=student_id, task_id=task_id, version=draft.next_version,
-                                source_code=source, summary=solutions.summary(result))
+                                source_code=source, summary={**solutions.summary(result), "total_hints": total_hints})
         draft.next_version += 1
         draft.check_count += 1
         db.add(submission)

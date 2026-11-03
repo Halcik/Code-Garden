@@ -57,10 +57,15 @@ def summary(result):
 
 def store_results(db, tests, result, **owner):
     for test, output in zip(tests, result.results, strict=True):
+        full_result = output.model_dump(mode="json", exclude_none=True)
+        student_result = {k: v for k, v in full_result.items() if k != "details" or output.is_public}
+        definition = dict(id=test.id, name=test.name, test_type=test.test_type,
+                          config=test.config, is_hidden=test.is_hidden, position=test.position)
+        # Private execution data stays in the existing immutable JSON snapshot.
+        if "submission_id" in owner:
+            definition["teacher_result"] = full_result
         db.add(SolutionTestResult(**owner, number=output.number,
-            definition=dict(id=test.id, name=test.name, test_type=test.test_type,
-                            config=test.config, is_hidden=test.is_hidden, position=test.position),
-            student_result=output.model_dump(mode="json", exclude_none=True)))
+                                 definition=definition, student_result=student_result))
 
 
 def store_check(db, draft, tests, result, source):
@@ -81,7 +86,8 @@ def public_check(db, draft):
 
 
 def public_submission(row):
-    return dict(id=row.id, version=row.version, submitted_at=row.submitted_at, **row.summary)
+    return dict(id=row.id, version=row.version, submitted_at=row.submitted_at,
+                **{key: value for key, value in row.summary.items() if key != "total_hints"})
 
 
 def public_draft(db, draft):

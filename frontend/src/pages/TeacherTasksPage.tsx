@@ -7,6 +7,7 @@ import DesignIcon from "../components/admin/DesignIcon";
 import LogoutButton from "../components/LogoutButton";
 import ThemeSwitch from "../components/ThemeSwitch";
 import clipboardIcon from "../assets/teacher/clipboard-list.svg";
+import submissionsIcon from "../assets/submissions/queue-Inbox.svg";
 import plusIcon from "../assets/teacher/plus.svg";
 import metricTasksIcon from "../assets/teacher/metric-tasks.svg";
 import metricAssignedIcon from "../assets/teacher/metric-assigned.svg";
@@ -69,17 +70,20 @@ function TaskCountMetric({ title, icon, status, revision }: {
 
 export function TeacherLayout() {
   const { user } = useAuth();
+  const location = useLocation();
+  const viewingSubmissions = location.pathname.includes("/submissions");
   return <div className="admin-layout teacher-layout">
     <aside className="admin-sidebar">
       <div className="admin-brand"><DesignIcon name="CodeGardenLogo" /><strong>Code Garden</strong></div>
-      <nav aria-label="Panel nauczyciela"><NavLink to="/teacher/tasks"><span className="teacher-nav-icon" aria-hidden="true" style={{ maskImage: `url("${clipboardIcon}")` }} />Zadania</NavLink></nav>
+      <nav aria-label="Panel nauczyciela"><NavLink to="/teacher/tasks"><span className="teacher-nav-icon" aria-hidden="true" style={{ maskImage: `url("${clipboardIcon}")` }} />Zadania</NavLink>
+        <NavLink to="/teacher/submissions"><span className="teacher-nav-icon" aria-hidden="true" style={{ maskImage: `url("${submissionsIcon}")` }} />Prace uczniów</NavLink></nav>
       <div className="admin-sidebar-footer">
         <div className="admin-identity"><DesignIcon name="Avatar" /><div><strong>{user?.login}</strong><span>Nauczyciel</span></div></div>
         <LogoutButton />
       </div>
     </aside>
     <div className="admin-application">
-      <header className="admin-topbar"><span>Panel nauczyciela / Zadania</span><ThemeSwitch /></header>
+      <header className="admin-topbar"><span>Panel nauczyciela / {viewingSubmissions ? "Rozwiązania" : "Zadania"}</span><ThemeSwitch /></header>
       <main className="admin-content"><Outlet /></main>
     </div>
   </div>;
@@ -209,7 +213,7 @@ export default function TeacherTasksPage() {
             <td>{task.topic} · {DIFFICULTIES[task.difficulty]}</td><td>{TASK_TYPES[task.task_type]}</td>
             <td><span className={`user-badge ${!task.is_archived && task.status === "READY" ? "status-active" : "task-draft"}`}>{task.is_archived ? "Zarchiwizowane" : STATUSES[task.status]}</span></td>
             <td><time dateTime={task.updated_at}>{new Date(task.updated_at).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })}</time></td>
-            <td>{task.is_archived ? "Tylko do odczytu" : "—"}</td>
+            <td>{task.is_archived && <p>Tylko do odczytu</p>}<Link className="teacher-open-link" to={`/teacher/tasks/${task.id}/submissions`}>Rozwiązania uczniów</Link></td>
             <td><div className="teacher-row-actions" aria-busy={pendingId === task.id}>
               {task.is_archived ? <button className="admin-text-button" disabled={pendingId !== null} onClick={() => changeArchive(task.id, false)}>{pendingId === task.id ? "Przywracanie…" : "Przywróć"}</button>
                 : <><Link className="teacher-open-link" to={`/teacher/tasks/${task.id}/edit`} aria-label={`Otwórz zadanie: ${task.title}`}>Otwórz</Link>

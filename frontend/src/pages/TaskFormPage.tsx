@@ -136,6 +136,7 @@ export default function TaskFormPage() {
         <nav className="editor-breadcrumb" aria-label="Ścieżka zadania"><Link to="/teacher/tasks" aria-label="Wróć do listy zadań">Zadania</Link><span>/ {taskId ? STATUSES[form.status as keyof typeof STATUSES] : "Nowe zadanie"}</span></nav>
         <div className="editor-title-row"><h1>{taskId ? original?.title || "Edycja zadania" : "Utwórz zadanie"}</h1><span className={`user-badge ${!archived && form.status === "READY" ? "status-active" : "task-draft"}`}>{archived ? "Zarchiwizowane" : STATUSES[form.status as keyof typeof STATUSES]}</span></div>
         <p className="editor-save-note">{saving ? "Zapisywanie zmian…" : (taskId ? "Edytuj dane zadania" : "Nowa wersja robocza · Uzupełnij informacje i zapisz zadanie")}</p>
+        {taskId && <Link className="teacher-open-link" to={`/teacher/tasks/${taskId}/submissions`}>Rozwiązania uczniów</Link>}
       </div>
       <div className="editor-header-actions"><PlaceholderButton icon="Eye">Podgląd</PlaceholderButton><PlaceholderButton icon="Play">Przetestuj zadanie</PlaceholderButton>
         {archived ? <button className="admin-button primary" type="button" disabled={saving} onClick={restore}>{saving ? "Przywracanie…" : "Przywróć"}</button>

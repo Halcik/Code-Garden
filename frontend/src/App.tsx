@@ -10,6 +10,8 @@ import AdminUsersPage from "./pages/AdminUsersPage";
 import TeacherTasksPage, { TeacherLayout } from "./pages/TeacherTasksPage";
 
 import TaskFormPage from "./pages/TaskFormPage";
+import TeacherSubmissionsPage from "./pages/TeacherSubmissionsPage";
+import TeacherSubmissionQueuePage from "./pages/TeacherSubmissionQueuePage";
 
 export default function App() {
   return (
@@ -33,8 +35,12 @@ export default function App() {
               <Route path="/teacher" element={<TeacherLayout />}>
                 <Route index element={<Navigate to="tasks" replace />} />
                 <Route path="tasks" element={<TeacherTasksPage />} />
+                <Route path="submissions" element={<TeacherSubmissionQueuePage />} />
+                <Route path="submissions/tasks/:taskId/students/:studentId" element={<TeacherSubmissionsPage />} />
                 <Route path="tasks/new" element={<TaskFormPage key="new" />} />
                 <Route path="tasks/:taskId/edit" element={<TaskFormPage key="edit" />} />
+                <Route path="tasks/:taskId/submissions" element={<TeacherSubmissionsPage />} />
+                <Route path="tasks/:taskId/students/:studentId/submissions" element={<TeacherSubmissionsPage />} />
               </Route>
             </Route>
             <Route element={<ProtectedRoute role="ADMIN" />}>
