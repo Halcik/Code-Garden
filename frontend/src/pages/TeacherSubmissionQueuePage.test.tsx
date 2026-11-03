@@ -55,8 +55,11 @@ it("filters and sorts on the server and resets pagination when filters change", 
 it("shows an empty queue and does not invent review statistics", async () => {
   empty = true; mount();
   expect(await screen.findByText("Żaden uczeń nie wysłał jeszcze rozwiązania Twoich zadań.")).toBeTruthy();
-  expect((screen.getByRole("button", { name: "Zaakceptowane" }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getAllByText("Dostępne po włączeniu oceniania")).toHaveLength(2);
+  fireEvent.click(screen.getByRole("button", { name: "Zaakceptowane" }));
+  await waitFor(() => expect(vi.mocked(apiFetch).mock.lastCall?.[0]).toContain("review_status=ACCEPTED"));
+  fireEvent.click(screen.getByRole("button", { name: "Do poprawy" }));
+  await waitFor(() => expect(vi.mocked(apiFetch).mock.lastCall?.[0]).toContain("review_status=CHANGES_REQUESTED"));
+  expect(screen.queryByText("Dostępne po włączeniu oceniania")).toBeNull();
 });
 it("shows request errors and retries", async () => {
   vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({}, { status: 403 }));

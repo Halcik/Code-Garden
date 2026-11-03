@@ -11,7 +11,8 @@ import SolutionCheckResult, { SolutionCheckSummary } from "../components/Solutio
 import "../styles/student-task.css";
 import { useSolutionDraft } from "../components/useSolutionDraft";
 import { submitSolution } from "../api/solutions";
-import type { SubmissionSummary } from "../api/solutions";
+import type { SubmissionSummary, SubmissionFeedback } from "../api/solutions";
+import StudentSubmissionReview, { StudentSubmissionStatus } from "../components/StudentSubmissionReview";
 import SubmitConfirmation from "../components/SubmitConfirmation";
 
 const PythonCodeEditor = lazy(() => import("../components/PythonCodeEditor"));
@@ -28,6 +29,7 @@ function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
   const [submitMessage, setSubmitMessage] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [latest, setLatest] = useState<SubmissionSummary | null>(null);
+  const [feedback, setFeedback] = useState<SubmissionFeedback | null>(null);
   const [stdin, setStdin] = useState("");
   const [running, setRunning] = useState(false);
   const runPending = useRef(false);
@@ -44,7 +46,11 @@ function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
       hydrated.current = true;
       setCheckResult(work.draft.last_check);
       setCheckedCode(work.draft.check_is_current ? work.draft.source_code : null);
-      setLatest(work.draft.latest_submission);
+    }
+    if (work.draft) {
+      const incoming = work.draft.latest_submission;
+      setLatest(previous => incoming && (!previous || incoming.version >= previous.version) ? incoming : previous);
+      setFeedback(work.draft.latest_feedback ?? null);
     }
   }, [work.draft]);
   async function submit() {
@@ -55,6 +61,7 @@ function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
       const revision = await work.flush();
       const value = await submitSolution(task.id, revision);
       setLatest(value.submission); setCheckResult(value.draft.last_check);
+      setFeedback(value.draft.latest_feedback ?? null);
       setCheckedCode(value.draft.check_is_current ? value.draft.source_code : null);
       setSubmitMessage(`Rozwiązanie zostało wysłane jako wersja ${value.submission.version}. ${value.submission.passed_tests}/${value.submission.total_tests} testów zaliczonych.`);
     } catch (reason) {
@@ -108,7 +115,7 @@ function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
         </section>
         <section className="admin-card student-material-card" aria-labelledby="student-theory-title" id="student-task-theory"><h2 id="student-theory-title">Krótka teoria</h2><p className="student-task-text student-theory-text">{task.theory?.trim() ? task.theory : "Do tego zadania nie dodano teorii."}</p></section>
         <StudentTaskHints taskId={task.id} />
-        <section className="admin-card student-material-card student-teacher-comment" aria-labelledby="student-comment-title"><h2 id="student-comment-title">Komentarz nauczyciela</h2><p className="student-placeholder-copy">Tutaj pojawi się komentarz nauczyciela do Twojego rozwiązania.</p></section>
+        <StudentSubmissionReview latest={latest} feedback={feedback} />
       </div>
       <section className="student-coding-area" aria-label="Kod ucznia">
         <div className="student-code-panel">
@@ -137,9 +144,10 @@ function TaskWorkspace({ task }: { task: StudentTaskDetail }) {
           {checkResult && checkedCode !== studentCode && <p role="status">Kod został zmieniony od ostatniego sprawdzenia.</p>}
           {checkError && <p role="alert" className="error-message">{checkError}</p>}
           <div aria-live="polite">{checking ? <p role="status">Oczekiwanie na wyniki testów…</p> : checkResult ? <SolutionCheckResult result={checkResult} /> : <p className="student-placeholder-copy">Sprawdź rozwiązanie, aby zobaczyć wyniki testów.</p>}</div>
-          <footer className="solution-check-footer">
+          {!latest && <footer className="solution-check-footer">
             <p>{checkResult?.total ? "Kliknij publiczny test, aby zobaczyć szczegóły." : "Testy zadania działają niezależnie od Twoich danych stdin."}</p>
-          </footer>
+          </footer>}
+          <StudentSubmissionStatus latest={latest} />
         </section>
       </section>
     </div>

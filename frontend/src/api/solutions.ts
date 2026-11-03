@@ -1,9 +1,11 @@
 import { apiFetch } from "./client";
 import { TasksApiError } from "./tasks";
 import type { CheckResult } from "./studentTasks";
+import type { Review } from "./reviews";
 
-export type SubmissionSummary = { id: number; version: number; submitted_at: string; passed_tests: number; failed_tests: number; total_tests: number; all_passed: boolean };
-export type SolutionDraft = { source_code: string; revision: number; checked_hash: string | null; checked_at: string | null; check_is_current: boolean; last_check: CheckResult | null; latest_submission: SubmissionSummary | null };
+export type SubmissionSummary = { id: number; version: number; submitted_at: string; passed_tests: number; failed_tests: number; total_tests: number; all_passed: boolean; review?: Review };
+export type SubmissionFeedback = Review & { version: number };
+export type SolutionDraft = { source_code: string; revision: number; checked_hash: string | null; checked_at: string | null; check_is_current: boolean; last_check: CheckResult | null; latest_submission: SubmissionSummary | null; latest_feedback?: SubmissionFeedback | null };
 async function request<T>(id: number, suffix: string, method = "GET", body?: unknown, signal?: AbortSignal): Promise<T> {
   const response = await apiFetch(`/student/tasks/${id}/${suffix}`, { method, signal,
     ...(body === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }) });

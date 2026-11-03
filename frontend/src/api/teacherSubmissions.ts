@@ -1,7 +1,8 @@
 import { apiFetch } from "./client";
+import type { Review, ReviewStatus } from "./reviews";
 
 export type Version = { id: number; version: number; submitted_at: string; passed_tests: number;
-  failed_tests: number; total_tests: number; all_passed: boolean };
+  failed_tests: number; total_tests: number; all_passed: boolean; review?: Review };
 export type SubmissionStudent = { id: number; login: string; status: string };
 export type SubmissionList = { items: { student: SubmissionStudent; submission_count: number;
   latest_submission: Version }[]; total: number; limit: number; offset: number };
@@ -29,8 +30,9 @@ export const submissionDetail = (id: number, signal: AbortSignal) => read<Submis
 
 export type SubmissionQueue = Omit<SubmissionList, "items"> & { tasks: { id: number; title: string; topic: string }[];
   items: (SubmissionList["items"][number] & { task: { id: number; title: string; topic: string }; used_hint_count: number })[] };
-export function submissionQueue(filters: { q: string; task: string; sort: string; offset: number }, signal: AbortSignal) {
+export function submissionQueue(filters: { q: string; task: string; sort: string; offset: number; review_status?: ReviewStatus | "" }, signal: AbortSignal) {
   const params = new URLSearchParams({ q: filters.q, sort: filters.sort, offset: String(filters.offset) });
   if (filters.task) params.set("task_id", filters.task);
+  if (filters.review_status) params.set("review_status", filters.review_status);
   return read<SubmissionQueue>(`submissions?${params}`, signal);
 }

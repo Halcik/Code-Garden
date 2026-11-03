@@ -38,7 +38,7 @@ def test_teacher_history_and_snapshots(client, work, actors, db_engine):
     assert item['submission_count'] == 2 and item['student']['id'] == actors['STUDENT']
     assert item['latest_submission']['id'] == second_id
     assert 'source_code' not in response.text and 'PRIVATE DRAFT' not in response.text
-    assert len(queries) <= 5
+    assert len(queries) <= 6
     history = client.get(base + f"/students/{actors['STUDENT']}/submissions").json()
     assert [v['id'] for v in history['items']] == [second_id, first_id]
     before = client.get(f"/teacher/submissions/{first_id}").json()

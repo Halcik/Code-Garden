@@ -7,6 +7,8 @@ from sqlalchemy.dialects.postgresql import insert
 from app.models.solution import SolutionDraft, DraftUsedHint, Submission, SubmissionUsedHint, SolutionTestResult
 from app.schemas.solution import DraftWrite
 from pydantic import ValidationError
+from app.models.review import SubmissionReview
+from app.services.reviews import public_review, review_map
 
 
 def code_hash(source):
@@ -85,17 +87,24 @@ def public_check(db, draft):
                 all_passed=draft.check_summary["all_passed"], results=[r.student_result for r in rows])
 
 
-def public_submission(row):
+def public_submission(row, review=None):
     return dict(id=row.id, version=row.version, submitted_at=row.submitted_at,
+                review=public_review(review),
                 **{key: value for key, value in row.summary.items() if key != "total_hints"})
 
 
 def public_draft(db, draft):
     latest = db.scalar(select(Submission).where(Submission.student_id == draft.student_id,
         Submission.task_id == draft.task_id).order_by(Submission.version.desc()).limit(1))
+    reviews = review_map(db, [latest.id] if latest else [])
+    feedback_row = db.execute(select(Submission.version, SubmissionReview).join(
+        SubmissionReview, SubmissionReview.submission_id == Submission.id).where(
+        Submission.student_id == draft.student_id, Submission.task_id == draft.task_id,
+        SubmissionReview.feedback != "").order_by(Submission.version.desc()).limit(1)).first()
     return dict(id=draft.id, source_code=draft.source_code, revision=draft.revision,
         created_at=draft.created_at, updated_at=draft.updated_at, check_count=draft.check_count,
         checked_at=draft.checked_at, checked_hash=draft.checked_hash,
         check_is_current=draft.checked_hash == code_hash(draft.source_code), last_check=public_check(db, draft),
         used_hints=[dict(hint_id=h.hint_id, revealed_at=h.revealed_at) for h in used_hints(db, draft.id)],
-        latest_submission=public_submission(latest) if latest else None)
+        latest_submission=public_submission(latest, reviews.get(latest.id)) if latest else None,
+        latest_feedback=dict(version=feedback_row[0], **public_review(feedback_row[1])) if feedback_row else None)

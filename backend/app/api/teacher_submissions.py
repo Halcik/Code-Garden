@@ -12,6 +12,8 @@ from app.models.task import Task, TaskHint
 from app.models.user import User, UserRole
 from app.schemas.teacher_submission import SubmissionPage, SubmissionHistory, SubmissionDetail, SubmissionQueue
 from app.services.solutions import public_submission
+from app.models.review import SubmissionReview
+from app.services.reviews import review_map
 
 router = APIRouter(prefix="/teacher", tags=["teacher submissions"])
 teacher = require_role(UserRole.TEACHER)
@@ -23,6 +25,7 @@ def student_data(user):
 
 @router.get("/submissions", response_model=SubmissionQueue)
 def queue(response: Response, q: str = Query("", max_length=200), task_id: int | None = None,
+          review_status: Literal["PENDING", "ACCEPTED", "CHANGES_REQUESTED"] | None = None,
           sort: Literal["newest", "oldest"] = "newest", limit: int = Query(25, ge=1, le=100),
           offset: int = Query(0, ge=0), author: User = Depends(teacher), db: Session = Depends(get_db)):
     response.headers["Cache-Control"] = "no-store"
@@ -38,7 +41,12 @@ def queue(response: Response, q: str = Query("", max_length=200), task_id: int |
         func.coalesce(hints.c.count, 0)).select_from(Submission).join(grouped,
         (Submission.task_id == grouped.c.task_id) & (Submission.student_id == grouped.c.student_id) &
         (Submission.version == grouped.c.version)).join(Task, Task.id == Submission.task_id).join(
-            User, User.id == Submission.student_id).outerjoin(hints, hints.c.submission_id == Submission.id)
+            User, User.id == Submission.student_id).outerjoin(hints, hints.c.submission_id == Submission.id).outerjoin(
+                SubmissionReview, SubmissionReview.submission_id == Submission.id)
+    if review_status == "PENDING":
+        query = query.where(SubmissionReview.id.is_(None))
+    elif review_status:
+        query = query.where(SubmissionReview.decision == review_status)
     if task_id is not None:
         query = query.where(Task.id == task_id)
     if q.strip():
@@ -47,12 +55,13 @@ def queue(response: Response, q: str = Query("", max_length=200), task_id: int |
     total = db.scalar(select(func.count()).select_from(query.subquery()))
     ordering = (Submission.submitted_at.desc(), Submission.id.desc()) if sort == "newest" else (
         Submission.submitted_at.asc(), Submission.id.asc())
-    rows = db.execute(query.options(load_only(User.id, User.login, User.status),
+    rows = list(db.execute(query.options(load_only(User.id, User.login, User.status),
         load_only(Task.id, Task.title, Task.topic), load_only(Submission.id, Submission.version,
-            Submission.summary, Submission.submitted_at)).order_by(*ordering).limit(limit).offset(offset))
+            Submission.summary, Submission.submitted_at)).order_by(*ordering).limit(limit).offset(offset)))
+    reviews = review_map(db, [row[2].id for row in rows])
     tasks = db.execute(select(Task.id, Task.title, Task.topic).where(Task.author_id == author.id).order_by(Task.title, Task.id))
     return dict(items=[dict(student=student_data(user), task=dict(id=task.id, title=task.title, topic=task.topic),
-        submission_count=count, used_hint_count=hint_count, latest_submission=public_submission(submission))
+        submission_count=count, used_hint_count=hint_count, latest_submission=public_submission(submission, reviews.get(submission.id)))
         for user, task, submission, count, hint_count in rows], total=total, limit=limit, offset=offset,
         tasks=[dict(id=t.id, title=t.title, topic=t.topic) for t in tasks])
 
@@ -66,14 +75,15 @@ def students(task_id: int, response: Response, limit: int = Query(25, ge=1, le=1
         func.count().label("count"), func.max(Submission.version).label("version")).where(
             Submission.task_id == task_id).group_by(Submission.student_id).subquery()
     total = db.scalar(select(func.count()).select_from(grouped))
-    rows = db.execute(select(User, Submission, grouped.c.count).join(
+    rows = list(db.execute(select(User, Submission, grouped.c.count).join(
         grouped, grouped.c.student_id == User.id).join(Submission,
         (Submission.student_id == User.id) & (Submission.task_id == task_id) &
         (Submission.version == grouped.c.version)).order_by(
             Submission.submitted_at.desc(), Submission.id.desc()).options(load_only(
-                Submission.id, Submission.version, Submission.summary, Submission.submitted_at)).limit(limit).offset(offset))
+                Submission.id, Submission.version, Submission.summary, Submission.submitted_at)).limit(limit).offset(offset)))
+    reviews = review_map(db, [row[1].id for row in rows])
     return dict(items=[dict(student=student_data(user), submission_count=count,
-        latest_submission=public_submission(submission)) for user, submission, count in rows],
+        latest_submission=public_submission(submission, reviews.get(submission.id))) for user, submission, count in rows],
         total=total, limit=limit, offset=offset)
 
 
@@ -87,8 +97,9 @@ def history(task_id: int, student_id: int, response: Response,
             Submission.summary, Submission.submitted_at)).order_by(Submission.version.desc())))
     # Do not expose unrelated accounts through a guessed student ID.
     user = db.get(User, student_id) if rows else None
+    reviews = review_map(db, [row.id for row in rows])
     return dict(student=student_data(user) if user else None,
-                items=[public_submission(row) for row in rows])
+                items=[public_submission(row, reviews.get(row.id)) for row in rows])
 
 
 @router.get("/submissions/{submission_id}", response_model=SubmissionDetail)
@@ -112,7 +123,8 @@ def detail(submission_id: int, response: Response,
     total_hints = row.summary.get("total_hints")
     if total_hints is None:
         total_hints = db.scalar(select(func.count()).select_from(TaskHint).where(TaskHint.task_id == row.task_id))
-    return dict(**public_submission(row), task_id=row.task_id, total_hints=total_hints,
+    reviews = review_map(db, [row.id])
+    return dict(**public_submission(row, reviews.get(row.id)), task_id=row.task_id, total_hints=total_hints,
         student=student_data(db.get(User, row.student_id)), source_code=row.source_code,
         test_results=snapshots, used_hints=[dict(hint_id=h.hint_id,
             reveal_order=h.reveal_order, revealed_at=h.revealed_at) for h in hints])

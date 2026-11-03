@@ -1,5 +1,6 @@
 from datetime import datetime
-from pydantic import BaseModel, JsonValue
+from pydantic import BaseModel, JsonValue, Field
+from app.schemas.review import ReviewResponse
 
 
 class SubmissionSummary(BaseModel):
@@ -10,6 +11,7 @@ class SubmissionSummary(BaseModel):
     failed_tests: int
     total_tests: int
     all_passed: bool
+    review: ReviewResponse = Field(default_factory=ReviewResponse)
 
 
 class SubmissionStudent(BaseModel):

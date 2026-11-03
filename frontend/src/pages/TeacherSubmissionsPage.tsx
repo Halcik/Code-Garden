@@ -13,6 +13,9 @@ import darkFile from "../assets/submissions/dark-FileCode2.svg";
 import lightCheck from "../assets/submissions/light-Check.svg";
 import darkCheck from "../assets/submissions/dark-Check.svg";
 import "../styles/teacher-submissions.css";
+import SubmissionReview from "../components/teacher/SubmissionReview";
+import TeacherStudentNote from "../components/teacher/TeacherStudentNote";
+import { REVIEW_LABELS } from "../api/reviews";
 
 const date = (value: string) => new Date(value).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" });
 function Score({ value }: { value: Version }) {
@@ -131,13 +134,19 @@ export default function TeacherSubmissionsPage() {
           <Suspense fallback={<p role="status">Ładowanie edytora kodu…</p>}><PythonCodeEditor value={detail.source_code} onChange={() => {}} readOnly height={340} ariaLabel="Kod rozwiązania ucznia — tylko do odczytu" /></Suspense></section>
           <section className="admin-card submission-panel"><div className="submission-panel-title"><h2>Wyniki testów automatycznych</h2><Score value={detail} /></div>
             {!detail.test_results.length ? <p>Brak zapisanych wyników testów dla tej wersji.</p> : detail.test_results.map(test => <TestResult key={test.number} test={test} />)}</section>
+          <SubmissionReview key={detail.id} submissionId={detail.id} version={detail.version} review={detail.review} onSaved={review => {
+            const id = detail.id;
+            setDetail(previous => previous?.id === id ? { ...previous, review } : previous);
+            setHistory(previous => previous ? { ...previous, items: previous.items.map(item => item.id === id ? { ...item, review } : item) } : previous);
+          }} />
           </>}
       </div><aside className="submission-side">
         {detail && <section className="admin-card submission-panel"><h2>Szczegóły rozwiązania</h2><dl className="submission-facts">
           {[["Uczeń", detail.student.login], ["Wersja", detail.version], ["Wysłano", date(detail.submitted_at)], ["Zaliczone", `${detail.passed_tests} z ${detail.total_tests}`],
-            ["Podpowiedzi", `${detail.used_hints.length} z ${Math.max(detail.total_hints ?? detail.used_hints.length, detail.used_hints.length)}`]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section>}
+            ["Podpowiedzi", `${detail.used_hints.length} z ${Math.max(detail.total_hints ?? detail.used_hints.length, detail.used_hints.length)}`], ["Weryfikacja", REVIEW_LABELS[detail.review?.status ?? "PENDING"]]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section>}
         <section className="admin-card submission-panel"><h2>Przesłane rozwiązania</h2>{history.items.map(version => <button key={version.id} className="submission-version" aria-pressed={selected === version.id} onClick={() => setSelected(version.id)}>
-          <strong>Wersja {version.version}</strong><span>{version.passed_tests} / {version.total_tests} testów · {date(version.submitted_at)}</span></button>)}</section>
+          <strong>Wersja {version.version}</strong><span>{version.passed_tests} / {version.total_tests} testów · {date(version.submitted_at)}</span><span>{REVIEW_LABELS[version.review?.status ?? "PENDING"]}</span></button>)}</section>
+        {history.student && <TeacherStudentNote key={history.student.id} studentId={history.student.id} />}
       </aside></div>}
   </>;
 }

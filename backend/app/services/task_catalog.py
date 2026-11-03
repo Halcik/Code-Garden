@@ -2,6 +2,7 @@ from sqlalchemy import case, func, select
 
 from app.models.task import Task
 from app.models.solution import SolutionDraft, Submission
+from app.models.review import SubmissionReview
 from app.schemas.task import StudentTaskResponse
 
 
@@ -40,6 +41,16 @@ def task_page(db, filters, *, sort_by, sort_order, limit, offset, student_id=Non
     else:
         items = [dict(**StudentTaskResponse.model_validate(task).model_dump(), progress_status=status)
                  for task, status in db.execute(query)]
+        if items:
+            latest = select(Submission.task_id.label("task_id"), func.max(Submission.version).label("version")).where(
+                Submission.student_id == student_id, Submission.task_id.in_([item['id'] for item in items])
+            ).group_by(Submission.task_id).subquery()
+            reviews = dict(db.execute(select(Submission.task_id, SubmissionReview.decision).join(latest,
+                (Submission.task_id == latest.c.task_id) & (Submission.version == latest.c.version)).outerjoin(
+                    SubmissionReview, SubmissionReview.submission_id == Submission.id).where(
+                        Submission.student_id == student_id)).all())
+            for item in items:
+                item['review_status'] = (reviews[item['id']] or 'PENDING') if item['id'] in reviews else None
     page = {"items": items, "total": total, "limit": limit, "offset": offset}
     if progress_counts is not None:
         page["progress_counts"] = progress_counts

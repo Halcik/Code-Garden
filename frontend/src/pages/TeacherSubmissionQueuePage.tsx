@@ -14,8 +14,10 @@ import lightCheck from "../assets/submissions/queue-light-CircleCheckBig.svg";
 import lightRotate from "../assets/submissions/queue-light-RotateCcw.svg";
 import lightAlert from "../assets/submissions/queue-light-TriangleAlert.svg";
 import "../styles/teacher-submissions.css";
+import { REVIEW_LABELS } from "../api/reviews";
+import type { ReviewStatus } from "../api/reviews";
 
-const initial = { q: "", task: "", sort: "newest", offset: 0 };
+const initial = { q: "", task: "", sort: "newest", offset: 0, review_status: "PENDING" as ReviewStatus | "" };
 export default function TeacherSubmissionQueuePage() {
   const { theme } = useTheme();
   const [filters, setFilters] = useState(initial);
@@ -23,7 +25,6 @@ export default function TeacherSubmissionQueuePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
-  const [tab, setTab] = useState("pending");
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError("");
@@ -37,17 +38,16 @@ export default function TeacherSubmissionQueuePage() {
   return <>
     <div className="admin-page-heading"><h1>Prace uczniów</h1><p>Przeglądaj formalnie wysłane rozwiązania uczniów i wyniki testów automatycznych.</p></div>
     <section className="submission-queue-metrics" aria-label="Podsumowanie prac uczniów">
-      {[{ label: "Do przejrzenia", icon: theme === "dark" ? inbox : lightInbox, value: loading ? "…" : data?.total ?? "—", note: "Najnowsza wersja każdego ucznia i zadania" },
-        { label: "Zaakceptowane w tym tygodniu", icon: theme === "dark" ? check : lightCheck, value: "—", note: "Dostępne po włączeniu oceniania" },
-        { label: "Wymaga poprawy", icon: theme === "dark" ? rotate : lightRotate, value: "—", note: "Dostępne po włączeniu oceniania" },
+      {[{ label: "Prace w widoku", icon: theme === "dark" ? inbox : lightInbox, value: loading ? "…" : data?.total ?? "—", note: "Najnowsza wersja każdego ucznia i zadania" },
+        { label: "Zaakceptowane w tym tygodniu", icon: theme === "dark" ? check : lightCheck, value: "—", note: "Statystyki w kolejnych etapach" },
+        { label: "Wymaga poprawy", icon: theme === "dark" ? rotate : lightRotate, value: "—", note: "Sprawdź zakładkę Do poprawy" },
         { label: "Priorytet po terminie", icon: theme === "dark" ? alert : lightAlert, value: "—", note: "Brak ustalonych terminów" }].map(metric =>
         <article className="admin-card teacher-metric" key={metric.label}><div className="teacher-metric-heading"><h2>{metric.label}</h2><span className="teacher-metric-icon"><img src={metric.icon} alt="" /></span></div>
           <p className="teacher-metric-value">{metric.value}</p><p className="teacher-metric-note">{metric.note}</p></article>)}
     </section>
     <div className="admin-card teacher-tabs" role="group" aria-label="Kolejki prac uczniów">
-      <button aria-pressed={tab === "pending"} onClick={() => setTab("pending")}>Do przejrzenia {data?.total ?? ""}</button>
-      <button disabled title="Dostępne po włączeniu oceniania">Zaakceptowane</button><button disabled title="Dostępne po włączeniu oceniania">Do poprawy</button>
-      <button aria-pressed={tab === "all"} onClick={() => setTab("all")}>Wszystkie {data?.total ?? ""}</button>
+      {([["PENDING", "Do przejrzenia"], ["ACCEPTED", "Zaakceptowane"], ["CHANGES_REQUESTED", "Do poprawy"], ["", "Wszystkie"]] as const).map(([value, label]) =>
+        <button key={value} aria-pressed={filters.review_status === value} onClick={() => setFilters(previous => ({ ...previous, review_status: value, offset: 0 }))}>{label}</button>)}
     </div>
     <section className="admin-card admin-filters submission-queue-filters" aria-label="Filtry prac uczniów">
       <label className="admin-search"><span className="sr-only">Szukaj ucznia lub zadania</span><input type="search" maxLength={200} placeholder="Szukaj ucznia lub zadania" value={filters.q} onChange={e => change("q", e.target.value)} /></label>
@@ -65,7 +65,7 @@ export default function TeacherSubmissionQueuePage() {
               <td><strong>{row.task.title}</strong><small>{row.task.topic} · <time dateTime={row.latest_submission.submitted_at}>{new Date(row.latest_submission.submitted_at).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })}</time></small></td>
               <td><span className={`submission-chip ${row.latest_submission.all_passed ? "passed" : "failed"}`}>{row.latest_submission.passed_tests} / {row.latest_submission.total_tests} testów</span></td>
               <td>{row.submission_count} wersji<small>{row.used_hint_count} wykorzystanych podpowiedzi</small></td>
-              <td><span className="submission-chip failed">Do przejrzenia</span><small>Priorytet: —</small></td>
+              <td><span className={`submission-chip ${row.latest_submission.review?.status === "ACCEPTED" ? "passed" : "failed"}`}>{REVIEW_LABELS[row.latest_submission.review?.status ?? "PENDING"]}</span><small>Priorytet: —</small></td>
               <td><Link className="teacher-open-link" to={`/teacher/submissions/tasks/${row.task.id}/students/${row.student.id}`}>Zobacz rozwiązanie →</Link></td></tr>)}</tbody></table></div>}
     </section>
     {data && data.total > 0 && !loading && !error && <nav className="admin-pagination" aria-label="Strony prac uczniów"><span>Wyświetlono {data.offset + 1}–{Math.min(data.offset + data.limit, data.total)} z {data.total} prac</span>

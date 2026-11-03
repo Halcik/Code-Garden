@@ -35,6 +35,18 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
+it.each([
+  ["PENDING", "Oczekuje na sprawdzenie"],
+  ["ACCEPTED", "Zaakceptowane"],
+  ["CHANGES_REQUESTED", "Wymaga poprawy"],
+])("shows latest teacher review %s with its icon on the task card", async (status, label) => {
+  vi.mocked(apiFetch).mockResolvedValue(Response.json({ items: [{ ...task, progress_status: "COMPLETED", review_status: status }], total: 1, limit: 24, offset: 0 }));
+  mount();
+  const badge = await screen.findByText(label);
+  expect(badge.getAttribute("data-review")).toBe(status);
+  expect(badge.querySelector(".student-review-icon")).toBeTruthy();
+});
+
 it("uses the student API and opens task details from a catalog card", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => path.startsWith("/student/tasks?")
     ? page(path, 1) : new Response(null, { status: 404 }));
@@ -313,7 +325,7 @@ it("shows each student's progress on task cards", async () => {
   ] }));
   mount();
   await waitFor(() => expect(document.querySelectorAll(".student-task-card")).toHaveLength(3));
-  expect([...document.querySelectorAll(".student-progress-badge")].map(node => node.textContent)).toEqual(["Nierozpoczęte", "W toku", "Ukończone"]);
+  expect([...document.querySelectorAll(".student-progress-badge")].map(node => node.textContent)).toEqual(["Nierozpoczęte", "W toku", "Oczekuje na sprawdzenie"]);
 });
 it("shows full progress counts even while filtering a paginated list", async () => {
   vi.mocked(apiFetch).mockResolvedValue(Response.json({ items: [task], total: 49, limit: 24, offset: 0,
