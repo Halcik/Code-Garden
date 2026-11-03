@@ -1,0 +1,67 @@
+.submission-breadcrumb { display: flex; flex-wrap: wrap; gap: 8px; color: var(--color-accent); font-size: 12px; }
+.submission-breadcrumb a { color: inherit; text-decoration: none; }
+.submission-layout { display: grid; grid-template-columns: minmax(0, 1fr) 310px; align-items: start; gap: 24px; }
+.submission-main, .submission-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.submission-instructions { white-space: pre-wrap; overflow-wrap: anywhere; }
+.submission-review-form { display: flex; flex-direction: column; gap: 12px; }
+.submission-review-form > label { display: flex; flex-direction: column; gap: 6px; }
+.submission-review-form textarea { width: 100%; resize: vertical; padding: 12px; border: 1px solid var(--color-input-border); border-radius: 8px; background: var(--color-surface-muted); color: var(--color-text); font: inherit; }
+.submission-review-form fieldset { display: flex; flex-wrap: wrap; gap: 12px; border: 1px solid var(--color-border); border-radius: 8px; padding: 12px; }
+.submission-review-form fieldset label { display: flex; align-items: center; gap: 6px; }
+.submission-review-form button { align-self: flex-start; }
+.submission-review-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.submission-feedback header { display: flex; flex-direction: column; gap: 2px; }
+.submission-feedback .submission-review-form { gap: 16px; }
+.submission-feedback textarea { min-height: 110px; font-size: 13px; line-height: 1.5; }
+.submission-feedback-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.submission-feedback-footer > p { flex: 1; }
+.submission-feedback-footer .admin-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 8px 12px; font-weight: 600; }
+.teacher-layout .submission-return-button { background: var(--color-error-surface); border-color: var(--color-error); color: var(--color-error); }
+.submission-return-icon { width: 15px; height: 15px; flex-shrink: 0; background: currentColor; mask-repeat: no-repeat; mask-position: center; mask-size: contain; }
+.submission-panel { padding: 20px; display: flex; flex-direction: column; gap: 16px; box-shadow: var(--shadow-student-material); }
+.submission-panel-title, .submission-facts div { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.submission-facts { display: flex; flex-direction: column; gap: 16px; margin: 0; }
+.submission-facts dt { color: var(--color-text-muted); }
+.submission-facts dd { margin: 0; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.submission-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.submission-chip { display: inline-flex; padding: 4px 8px; border-radius: 999px; font-size: 11px; background: var(--color-catalog-chip); color: var(--color-text-secondary); white-space: nowrap; }
+.submission-chip.passed, .submission-result-icon.passed { background: var(--color-brand-surface); color: var(--color-catalog-accent); }
+.submission-chip.failed { background: var(--color-warning-surface); color: var(--color-warning); }
+.submission-version { display: flex; flex-direction: column; text-align: left; gap: 6px; padding: 12px; border: 1px solid transparent; border-radius: 8px; background: var(--color-surface-muted); color: var(--color-text); }
+.submission-version[aria-pressed=true] { background: var(--color-brand-surface); border-color: var(--color-accent); }
+.submission-version span { color: var(--color-text-secondary); font-size: 12px; }
+.submission-code { overflow: hidden; }
+.submission-code header { background: var(--color-surface-muted); color: var(--color-text); height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; gap: 12px; }
+.submission-code header span { display: flex; align-items: center; gap: 8px; font-family: monospace; }
+.submission-code header small { color: var(--color-text-muted); }
+.submission-test { min-width: 0; border-bottom: 1px solid var(--color-border); padding: 8px 0; }
+.submission-test:last-child { border-bottom: 0; }
+.submission-test-summary { display: grid; grid-template-columns: 24px minmax(0, 1fr) 48px 72px; align-items: center; gap: 12px; }
+.submission-test-summary > .submission-chip { justify-self: start; }
+.submission-test-name { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.submission-test-name small { color: var(--color-text-muted); font-family: monospace; }
+.submission-rule-description { color: var(--color-text-secondary); font-size: 12px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.submission-result-icon { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; flex-shrink: 0; }
+.submission-result-icon.failed { background: var(--color-error-surface); color: var(--color-error); }
+.submission-test-data { display: grid; gap: 12px; padding: 12px; background: var(--color-surface-muted); border-radius: 8px; }
+.submission-test-data dt { color: var(--color-text-secondary); font-weight: 600; }
+.submission-test-data dd { margin: 4px 0 0; }
+.submission-test-data pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+.submission-student { display: flex; align-items: center; gap: 8px; }
+.submission-pagination-actions { display: flex; align-items: center; gap: 16px; }
+.teacher-layout .admin-sidebar nav { display: flex; flex-direction: column; gap: 6px; }
+.teacher-layout .admin-sidebar nav a:not(.active) { background: transparent; color: var(--color-text-secondary); }
+.submission-queue-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.submission-queue-filters { flex-wrap: nowrap; gap: 8px; }
+.submission-queue-filters label { min-width: 100px; }
+.submission-queue-filters .admin-search { min-width: 180px; }
+.submission-queue-filters select:disabled { opacity: .6; }
+.submission-queue-table td { font-size: 12px; }
+.submission-queue-table td small { display: block; font-size: 11px; color: var(--color-text-muted); margin-top: 4px; }
+.submission-queue-table td:first-child { min-width: 150px; }
+.teacher-layout .submission-queue-list .users-list-heading { flex-direction: column; align-items: flex-start; padding: 20px; gap: 2px; }
+.teacher-layout .submission-queue-list .users-list-heading h2 { font-size: 16px; }
+@media (max-width: 1200px) { .submission-queue-filters { flex-wrap: wrap; } .submission-queue-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 550px) { .submission-queue-metrics { grid-template-columns: 1fr; } }
+@media (max-width: 1100px) { .submission-layout { grid-template-columns: minmax(0, 1fr) 270px; gap: 16px; } }
+@media (max-width: 800px) { .submission-layout { grid-template-columns: minmax(0, 1fr); } .submission-side { grid-row: 1; } }

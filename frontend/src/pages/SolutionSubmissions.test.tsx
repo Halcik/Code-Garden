@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import StudentTaskPage from "./StudentTaskPage";
 import { apiFetch } from "../api/client";
 import type { SolutionDraft } from "../api/solutions";
+import type { ReviewStatus } from "../api/reviews";
 
 vi.mock("../api/client", () => ({ apiFetch: vi.fn() }));
 const auth = vi.hoisted(() => ({ retrySession: vi.fn() }));
@@ -56,6 +57,54 @@ async function mount() {
 }
 const saves = () => vi.mocked(apiFetch).mock.calls.filter(([p, o]) => p.endsWith("/draft") && o?.method === "PUT");
 const submissions = () => vi.mocked(apiFetch).mock.calls.filter(([p]) => p.endsWith("/submissions"));
+
+it.each([
+  ["PENDING", "Oczekuje na ocenę"], ["ACCEPTED", "Zaakceptowane"], ["CHANGES_REQUESTED", "Wymaga poprawy"],
+] as const)("shows automatic results separately from teacher status %s", async (status: ReviewStatus, label) => {
+  draft.latest_submission = { id: 3, version: 2, submitted_at: "2026-11-03T12:00:00Z", passed_tests: 1, failed_tests: 1, total_tests: 2, all_passed: false,
+    review: { status, feedback: "", reviewed_at: null } };
+  draft.latest_feedback = { version: 1, status: "CHANGES_REQUESTED", feedback: "Sprawdź pętlę.", reviewed_at: "2026-11-02T12:00:00Z" };
+  await mount();
+  expect((await screen.findByLabelText("Weryfikacja nauczyciela")).dataset.version).toBe("2");
+  expect(screen.getByText(label)).toBeTruthy();
+  expect(screen.getByText(/Ostatnio wysłano: wersja 2/).textContent).toContain("1/2 testów");
+  expect(screen.getByRole("heading", { name: "Komentarz nauczyciela" })).toBeTruthy();
+  expect(screen.getByLabelText("Komentarz nauczyciela").closest(".student-task-materials")).toBeTruthy();
+  expect(screen.getByLabelText("Weryfikacja nauczyciela").closest(".solution-check-card")).toBeTruthy();
+  expect(screen.getByLabelText("Komentarz nauczyciela").textContent).toContain("Wersja 1");
+  expect(screen.getByText("Sprawdź pętlę.")).toBeTruthy();
+  expect(screen.queryByText(/Prywatna notatka/)).toBeNull();
+});
+
+it("resets review to pending after a new submission while retaining correctly labeled old feedback", async () => {
+  version = 1;
+  draft.latest_submission = { id: 1, version: 1, submitted_at: "2026-11-03T12:00:00Z", passed_tests: 1, failed_tests: 1, total_tests: 2, all_passed: false,
+    review: { status: "ACCEPTED", feedback: "Pierwsza uwaga.", reviewed_at: null } };
+  draft.latest_feedback = { version: 1, status: "ACCEPTED", feedback: "Pierwsza uwaga.", reviewed_at: null };
+  const editor = await mount();
+  expect(await screen.findByText("Zaakceptowane")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Wyślij rozwiązanie" }));
+  fireEvent.click(screen.getByRole("button", { name: "Potwierdź wysłanie" }));
+  expect(await screen.findByText("Oczekuje na ocenę")).toBeTruthy();
+  expect(screen.getByLabelText("Weryfikacja nauczyciela").dataset.version).toBe("2");
+  expect(screen.getByLabelText("Komentarz nauczyciela").textContent).toContain("Wersja 1");
+  expect(screen.getByLabelText("Komentarz nauczyciela").textContent).not.toContain("Wersja 2");
+  expect(editor.readOnly).toBe(false);
+});
+
+it("refreshes teacher feedback from the autosave response without replacing the student's code", async () => {
+  draft.latest_submission = { id: 1, version: 1, submitted_at: "2026-11-03T12:00:00Z", passed_tests: 1, failed_tests: 1, total_tests: 2, all_passed: false,
+    review: { status: "PENDING", feedback: "", reviewed_at: null } };
+  const editor = await mount();
+  await screen.findByText("Oczekuje na ocenę");
+  draft = { ...draft, latest_submission: { ...draft.latest_submission!, review: { status: "CHANGES_REQUESTED", feedback: "Nowy feedback.", reviewed_at: null } },
+    latest_feedback: { version: 1, status: "CHANGES_REQUESTED", feedback: "Nowy feedback.", reviewed_at: null } };
+  fireEvent.change(editor, { target: { value: "my newer code" } });
+  fireEvent.click(screen.getByRole("button", { name: "Zapisz wersję roboczą" }));
+  expect(await screen.findByText("Wymaga poprawy")).toBeTruthy();
+  expect(screen.getByText("Nowy feedback.")).toBeTruthy();
+  expect(editor.value).toBe("my newer code");
+});
 
 it("loads the server draft into Monaco, including a server initialized starter", async () => {
   expect((await mount()).value).toBe("saved draft");

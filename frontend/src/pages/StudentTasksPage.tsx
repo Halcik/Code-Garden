@@ -10,6 +10,11 @@ import LogoutButton from "../components/LogoutButton";
 import TaskBadges from "../components/TaskBadges";
 import codeIcon from "../assets/student/code.svg";
 import clipboardIcon from "../assets/teacher/clipboard-list.svg";
+import pendingIcon from "../assets/submissions/queue-Inbox.svg";
+import acceptedIcon from "../assets/submissions/queue-CircleCheckBig.svg";
+import changesIcon from "../assets/submissions/queue-RotateCcw.svg";
+import { REVIEW_LABELS } from "../api/reviews";
+const reviewIcons = { PENDING: pendingIcon, ACCEPTED: acceptedIcon, CHANGES_REQUESTED: changesIcon };
 import "../styles/admin-users.css";
 import "../styles/student-tasks.css";
 
@@ -95,9 +100,9 @@ export default function StudentTasksPage() {
         : <><div className="student-task-grid">{data.items.map(task => <article className="admin-card student-task-card" key={task.id}>
           <div className="student-card-heading">
             <span className="student-topic-icon"><span aria-hidden="true" style={{ maskImage: `url("${codeIcon}")` }} /></span>
-            <span className="student-progress-badge" data-progress={task.progress_status ?? "NOT_STARTED"} title={task.progress_status === "COMPLETED" ? "Rozwiązanie wysłane — oczekuje na sprawdzenie przez nauczyciela" : undefined}>
-              {task.progress_status === "COMPLETED" && <svg className="student-completion-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>}
-              {progressLabels[task.progress_status ?? "NOT_STARTED"]}
+            <span className="student-progress-badge" data-progress={task.progress_status ?? "NOT_STARTED"} data-review={task.progress_status === "COMPLETED" ? task.review_status ?? "PENDING" : undefined}>
+              {task.progress_status === "COMPLETED" && <span className="student-review-icon" aria-hidden="true" style={{ maskImage: `url("${reviewIcons[task.review_status ?? "PENDING"]}")` }} />}
+              {task.progress_status === "COMPLETED" ? REVIEW_LABELS[task.review_status ?? "PENDING"] : progressLabels[task.progress_status ?? "NOT_STARTED"]}
             </span>
           </div>
           <h2><Link to={`/student/tasks/${task.id}`}>{task.title}</Link></h2><p className="student-description">{task.description}</p>

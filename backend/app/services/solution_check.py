@@ -97,7 +97,7 @@ _check()
                 additional_files=base64.b64encode(archive.getvalue()).decode())
 
 
-async def check_solution(task, tests, source, service):
+async def check_solution(task, tests, source, service, *, include_hidden_details=False):
     # Validate stored definitions before any execution; malformed teacher data is
     # an infrastructure/configuration error, never a failed student solution.
     try:
@@ -116,7 +116,7 @@ async def check_solution(task, tests, source, service):
         async with asyncio.timeout(budget):
             for number, (item, definition) in enumerate(definitions, 1):
                 config = definition.config
-                details = PublicTestDetails(name=definition.name, config=config) if not definition.is_hidden else None
+                details = PublicTestDetails(name=definition.name, config=config) if include_hidden_details or not definition.is_hidden else None
                 passed = False
                 if definition.test_type == "STRUCTURAL":
                     if analysis is None:

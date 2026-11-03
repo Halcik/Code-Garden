@@ -1,8 +1,9 @@
 import { apiFetch } from "./client";
 import { TasksApiError } from "./tasks";
 import type { Task } from "./tasks";
+import type { ReviewStatus } from "./reviews";
 
-export type StudentTask = Pick<Task, "id" | "title" | "description" | "topic" | "difficulty" | "task_type" | "estimated_time_minutes"> & { progress_status?: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" };
+export type StudentTask = Pick<Task, "id" | "title" | "description" | "topic" | "difficulty" | "task_type" | "estimated_time_minutes"> & { progress_status?: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED"; review_status?: ReviewStatus | null };
 export type CatalogFilters = { search: string; topic: string; difficulty: string; task_type: string; sort_by: string; sort_order: string; offset: number; progress_status?: string };
 export type StudentTaskList = { items: StudentTask[]; total: number; limit: number; offset: number; progress_counts?: Record<NonNullable<StudentTask["progress_status"]>, number> };
 export type StudentTaskDetail = StudentTask & Pick<Task, "theory" | "instructions" | "starter_code">;

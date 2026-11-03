@@ -58,6 +58,7 @@ class StudentTaskDetail(StudentTaskResponse):
 
 class StudentCatalogTask(StudentTaskResponse):
     progress_status: Literal["NOT_STARTED", "IN_PROGRESS", "COMPLETED"]
+    review_status: Literal["PENDING", "ACCEPTED", "CHANGES_REQUESTED"] | None = None
 
 
 class StudentProgressCounts(BaseModel):
