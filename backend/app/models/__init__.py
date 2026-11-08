@@ -1,7 +1,8 @@
 from app.models.user import User
+from app.models.group import StudentGroup, group_students
 from app.models.task import Task, TaskTest, TaskHint
 
-__all__ = ["User", "Task", "TaskTest", "TaskHint", "SolutionDraft", "DraftUsedHint",
+__all__ = ["User", "StudentGroup", "group_students", "Task", "TaskTest", "TaskHint", "SolutionDraft", "DraftUsedHint",
            "Submission", "SubmissionUsedHint", "SolutionTestResult", "SubmissionReview", "TeacherStudentNote"]
 
 from app.models.solution import SolutionDraft, DraftUsedHint, Submission, SubmissionUsedHint, SolutionTestResult

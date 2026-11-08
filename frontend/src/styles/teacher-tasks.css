@@ -20,6 +20,7 @@
 .teacher-layout .admin-content { max-width: none; padding: 32px 40px 48px; }
 .teacher-layout .admin-card { box-shadow: var(--task-card-shadow); }
 .teacher-layout .admin-sidebar nav a { min-height: 40px; padding: 10px 12px; }
+.teacher-layout .admin-sidebar nav a .design-icon { color: inherit; }
 .teacher-nav-icon { display: inline-block; width: 17px; height: 17px; flex-shrink: 0; background: currentColor; mask-repeat: no-repeat; mask-position: center; mask-size: contain; }
 .teacher-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; }
 .teacher-layout .admin-button { text-decoration: none; }

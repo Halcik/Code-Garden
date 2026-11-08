@@ -72,10 +72,12 @@ export function TeacherLayout() {
   const { user } = useAuth();
   const location = useLocation();
   const viewingSubmissions = location.pathname.includes("/submissions");
+  const viewingGroups = location.pathname.startsWith("/teacher/groups");
   return <div className="admin-layout teacher-layout">
     <aside className="admin-sidebar">
       <div className="admin-brand"><DesignIcon name="CodeGardenLogo" /><strong>Code Garden</strong></div>
-      <nav aria-label="Panel nauczyciela"><NavLink to="/teacher/tasks"><span className="teacher-nav-icon" aria-hidden="true" style={{ maskImage: `url("${clipboardIcon}")` }} />Zadania</NavLink>
+      <nav aria-label="Panel nauczyciela"><NavLink to="/teacher/groups"><DesignIcon name="Users" />Grupy</NavLink>
+        <NavLink to="/teacher/tasks"><span className="teacher-nav-icon" aria-hidden="true" style={{ maskImage: `url("${clipboardIcon}")` }} />Zadania</NavLink>
         <NavLink to="/teacher/submissions"><span className="teacher-nav-icon" aria-hidden="true" style={{ maskImage: `url("${submissionsIcon}")` }} />Prace uczniów</NavLink></nav>
       <div className="admin-sidebar-footer">
         <div className="admin-identity"><DesignIcon name="Avatar" /><div><strong>{user?.login}</strong><span>Nauczyciel</span></div></div>
@@ -83,7 +85,7 @@ export function TeacherLayout() {
       </div>
     </aside>
     <div className="admin-application">
-      <header className="admin-topbar"><span>Panel nauczyciela / {viewingSubmissions ? "Rozwiązania" : "Zadania"}</span><ThemeSwitch /></header>
+      <header className="admin-topbar"><span>Panel nauczyciela / {viewingGroups ? "Grupy" : viewingSubmissions ? "Rozwiązania" : "Zadania"}</span><ThemeSwitch /></header>
       <main className="admin-content"><Outlet /></main>
     </div>
   </div>;
