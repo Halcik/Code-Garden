@@ -5,6 +5,7 @@ from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, I
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from app.db.base import Base
+from app.models.group_invitation import GroupInvitation
 
 if TYPE_CHECKING:
     from app.models.user import User
@@ -25,6 +26,10 @@ class StudentGroup(Base):
     student_count: Mapped[int] = column_property(
         select(func.count()).where(group_students.c.group_id == id)
         .correlate_except(group_students).scalar_subquery()
+    )
+    pending_invitation_count: Mapped[int] = column_property(
+        select(func.count()).where(GroupInvitation.group_id == id, GroupInvitation.status == "PENDING")
+        .correlate_except(GroupInvitation).scalar_subquery()
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { DIFFICULTIES, TASK_TYPES, TasksApiError } from "../api/tasks";
 import { listStudentTasks } from "../api/studentTasks";
 import type { CatalogFilters, StudentTaskList } from "../api/studentTasks";
@@ -23,13 +23,15 @@ const progressLabels = { NOT_STARTED: "Nierozpoczęte", IN_PROGRESS: "W toku", C
 
 export function StudentLayout() {
   const { user } = useAuth();
+  const viewingGroups = useLocation().pathname.startsWith("/student/groups");
   return <div className="admin-layout student-layout">
     <aside className="admin-sidebar">
       <div className="admin-brand"><DesignIcon name="CodeGardenLogo" /><strong>Code Garden</strong></div>
-      <nav aria-label="Panel ucznia"><NavLink to="/student/tasks"><span className="student-nav-icon" style={{ maskImage: `url("${clipboardIcon}")` }} aria-hidden="true" />Zadania</NavLink></nav>
+      <nav aria-label="Panel ucznia"><NavLink to="/student/tasks"><span className="student-nav-icon" style={{ maskImage: `url("${clipboardIcon}")` }} aria-hidden="true" />Zadania</NavLink>
+        <NavLink to="/student/groups"><DesignIcon name="Users" />Grupy</NavLink></nav>
       <div className="admin-sidebar-footer"><div className="admin-identity"><DesignIcon name="Avatar" /><div><strong>{user?.login}</strong><span>Uczeń</span></div></div><LogoutButton /></div>
     </aside>
-    <div className="admin-application"><header className="admin-topbar"><span>Panel ucznia / Zadania</span><ThemeSwitch /></header><main className="admin-content"><Outlet /></main></div>
+    <div className="admin-application"><header className="admin-topbar"><span>Panel ucznia / {viewingGroups ? "Grupy" : "Zadania"}</span><ThemeSwitch /></header><main className="admin-content"><Outlet /></main></div>
   </div>;
 }
 

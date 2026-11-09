@@ -8,6 +8,7 @@ from app.api.student import router as student_router
 from app.api.teacher_submissions import router as teacher_submissions_router
 from app.api.teacher_reviews import router as teacher_reviews_router
 from app.api.teacher_groups import router as teacher_groups_router
+from app.api.group_invitations import teacher_router as teacher_invitations_router, student_router as student_groups_router
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -19,6 +20,8 @@ app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(teacher_router)
 app.include_router(teacher_groups_router)
+app.include_router(teacher_invitations_router)
+app.include_router(student_groups_router)
 app.include_router(teacher_submissions_router)
 app.include_router(teacher_reviews_router)
 app.include_router(student_router)

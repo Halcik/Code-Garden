@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -7,16 +7,9 @@ from app.db.session import get_db
 from app.models.group import StudentGroup
 from app.models.user import User, UserRole
 from app.schemas.group import GroupCreate, GroupResponse, GroupUpdate
+from app.services.groups import owned_group
 
 router = APIRouter(prefix="/teacher/groups", tags=["teacher groups"])
-
-
-def owned_group(db: Session, group_id: int, teacher_id: int, lock: bool = False) -> StudentGroup:
-    query = select(StudentGroup).where(StudentGroup.id == group_id, StudentGroup.teacher_id == teacher_id)
-    group = db.scalar(query.with_for_update() if lock else query)
-    if group is None:
-        raise HTTPException(status_code=404, detail="Group not found")
-    return group
 
 
 @router.get("", response_model=list[GroupResponse])

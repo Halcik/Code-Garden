@@ -1,13 +1,16 @@
 import { Link } from "react-router-dom";
 import type { Group } from "../../api/groups";
 import GroupDialog from "./GroupDialog";
+import GroupCodePanel from "./GroupCodePanel";
+import GroupMembers from "./GroupMembers";
 
 type Props = {
   group: Group; editing: boolean; pending: boolean; confirmDelete: boolean; deleteError: string;
   onEdit: () => void; onDelete: () => void; onCancelDelete: () => void; onConfirmDelete: () => void;
+  onInvite: () => void; onChanged: () => void;
 };
 
-export default function GroupDetails({ group, editing, pending, confirmDelete, deleteError, onEdit, onDelete, onCancelDelete, onConfirmDelete }: Props) {
+export default function GroupDetails({ group, editing, pending, confirmDelete, deleteError, onEdit, onDelete, onCancelDelete, onConfirmDelete, onInvite, onChanged }: Props) {
   return <div className="group-detail-view">
     <div className="teacher-heading admin-page-heading group-detail-heading">
       <div className="group-detail-title"><Link className="group-breadcrumb" to="/teacher/groups">Grupy / Aktywne</Link>
@@ -36,27 +39,16 @@ export default function GroupDetails({ group, editing, pending, confirmDelete, d
       <button type="button" disabled title="Postępy grupy będą dostępne w kolejnym etapie">Postęp</button>
     </div>
     <div className="group-detail-columns">
-      <section className="admin-card group-students" aria-labelledby="group-students-heading">
-        <div className="group-students-heading"><div><h2 id="group-students-heading">Uczniowie</h2>
-          <p className="muted">{group.student_count} aktywnych · Oczekujące zaproszenia: —</p></div>
-          <div className="group-detail-actions">
-            <button className="admin-button group-detail-secondary" disabled title="Lista i wyszukiwanie członków będą dostępne wraz z obsługą zaproszeń"><span className="group-detail-icon search" aria-hidden="true" />Szukaj uczniów</button>
-            <button className="admin-button group-detail-secondary" disabled title="Zapraszanie uczniów będzie dostępne w kolejnym etapie"><span className="group-detail-icon invite" aria-hidden="true" />Zaproś</button>
-          </div>
-        </div>
-        <div className="users-table-scroll"><table className="users-table group-students-table" aria-label="Uczniowie grupy">
-          <thead><tr>{["Uczeń", "Ukończone", "Najnowsze zadanie", "Status", "Ostatnia aktywność", "Akcje"].map(column => <th key={column} scope="col">{column}</th>)}</tr></thead>
-          <tbody><tr><td colSpan={6} className="group-students-empty">{group.student_count === 0 ? "Grupa nie ma jeszcze członków." : "Lista członków będzie dostępna w kolejnym etapie."}</td></tr></tbody>
-        </table></div>
-      </section>
+      <GroupMembers group={group} onInvite={onInvite} onChanged={onChanged} />
       <aside className="group-detail-sidebar" aria-label="Informacje i zarządzanie grupą">
+        <GroupCodePanel key={group.id} groupId={group.id} />
         <section className="admin-card group-card"><h2>Status zadania</h2><p className="group-assignment-value">—</p>
           <p className="group-description">Przypisywanie zadań do grup będzie dostępne w kolejnym etapie.</p>
           <div className="group-empty-track" aria-hidden="true" />
         </section>
         <section className="admin-card group-card"><h2>Zarządzanie grupą</h2>
           <div className="group-management-actions">
-            <button className="admin-button group-detail-secondary" disabled title="Zaproszenia będą dostępne w kolejnym etapie">Zarządzaj zaproszeniami</button>
+            <button className="admin-button group-detail-secondary" onClick={onInvite}>Zarządzaj zaproszeniami</button>
             <div className="group-management-row">
               <button className="admin-button primary" disabled={editing || pending} onClick={onEdit}>Edytuj grupę</button>
               <button className="admin-button submission-return-button" disabled={editing || pending} onClick={onDelete}>Usuń grupę</button>

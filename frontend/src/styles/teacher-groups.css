@@ -17,8 +17,8 @@
 .group-description { white-space: pre-wrap; color: var(--color-text-secondary); }
 .group-card-footer, .group-actions { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 12px; }
 .group-card-footer { justify-content: space-between; }
-.group-card-footer .admin-text-button:disabled { color: #136d49; opacity: 1; font-weight: 700; }
-:root[data-theme="dark"] .group-card-footer .admin-text-button:disabled { color: #4ade80; opacity: 1; }
+.group-card-footer .admin-text-button { color: #136d49; opacity: 1; font-weight: 700; }
+:root[data-theme="dark"] .group-card-footer .admin-text-button { color: #4ade80; opacity: 1; }
 .teacher-layout .group-open-button { color: var(--color-catalog-action-text); background: var(--color-catalog-action); }
 .teacher-layout .group-open-button:hover { background: var(--color-brand-surface); }
 :root[data-theme="dark"] .teacher-layout .group-open-button { border-color: var(--task-button-border); }
@@ -44,7 +44,7 @@
 .group-icon::before { content: ""; width: 20px; height: 20px; background: currentColor; mask: url("../assets/teacher/group-group-users.svg") center / contain no-repeat; }
 .group-form { display: flex; flex-direction: column; gap: 16px; }
 .group-form label { display: flex; flex-direction: column; gap: 6px; color: var(--color-text-secondary); font-size: 12px; }
-.group-form input, .group-form textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--color-input-border); border-radius: 8px; background: var(--color-surface-muted); color: var(--color-text); font: inherit; }
+.group-form input, .group-form textarea, .group-form select { width: 100%; padding: 10px 12px; border: 1px solid var(--color-input-border); border-radius: 8px; background: var(--color-surface-muted); color: var(--color-text); font: inherit; }
 .group-form textarea { resize: vertical; min-height: 100px; }
 .group-delete { display: flex; flex-direction: column; gap: 16px; padding-top: 16px; border-top: 1px solid var(--color-border); }
 .group-detail-view { display: flex; flex-direction: column; gap: 24px; }
@@ -76,6 +76,13 @@
 .group-management-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
 .group-management-row { display: flex; gap: 8px; width: 100%; }
 .group-management-row .admin-button { flex: 1; padding-inline: 8px; }
+.group-invite-results { display: flex; flex-direction: column; gap: 10px; max-height: 240px; overflow-y: auto; }
+.group-invite-results label { display: flex; align-items: center; gap: 8px; }
+.group-pending-invitations { display: flex; flex-direction: column; gap: 12px; }
+.group-pending-invitations h3 { font-size: 14px; margin: 0; }
+.group-pending-invitations > div { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
+.group-code-value { display: block; overflow-wrap: anywhere; user-select: all; padding: 12px; background: var(--color-surface-muted); border: 1px solid var(--color-border); border-radius: 8px; font-size: 16px; }
+.group-member-login { font-weight: 600; color: var(--color-text); }
 @media (max-width: 1200px) { .group-detail-heading { flex-direction: column; align-items: flex-start; } .group-detail-columns { grid-template-columns: minmax(0, 1fr) 260px; } }
 @media (max-width: 960px) { .group-detail-columns { grid-template-columns: minmax(0, 1fr); } .group-detail-sidebar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; } }
 @media (max-width: 600px) { .group-detail-sidebar { grid-template-columns: minmax(0, 1fr); } }

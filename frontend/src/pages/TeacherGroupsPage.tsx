@@ -7,6 +7,7 @@ import { useAuth } from "../auth/AuthProvider";
 import plusIcon from "../assets/teacher/plus.svg";
 import GroupDetails from "../components/teacher/GroupDetails";
 import GroupDialog from "../components/teacher/GroupDialog";
+import GroupInvitationsDialog from "../components/teacher/GroupInvitationsDialog";
 import "../styles/teacher-groups.css";
 
 function GroupForm({ group, onSave, onCancel, onError }: {
@@ -70,6 +71,7 @@ export default function TeacherGroupsPage() {
   const [revision, setRevision] = useState(0);
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [inviteGroup, setInviteGroup] = useState<Group | null>(null);
   const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState("");
   const actionLock = useRef(false);
@@ -78,7 +80,7 @@ export default function TeacherGroupsPage() {
   }
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true); setError(""); setGroup(null); setGroups([]); setEditing(false); setConfirmDelete(false);
+    setLoading(true); setError(""); setGroup(null); setGroups([]); setEditing(false); setConfirmDelete(false); setInviteGroup(null);
     const load = async () => {
       try {
         if (groupId) {
@@ -116,6 +118,13 @@ export default function TeacherGroupsPage() {
     if (groupId) setGroup(result);
     else setGroups(previous => [result, ...previous]);
   }
+  async function refreshGroup(id: number) {
+    try {
+      const result = await getGroup(String(id), new AbortController().signal);
+      if (groupId) setGroup(result);
+      else setGroups(previous => previous.map(item => item.id === id ? result : item));
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Nie udało się odświeżyć grupy."); authError(reason); }
+  }
   const query = search.trim().toLocaleLowerCase("pl");
   const visibleGroups = groups.filter(item => `${item.name} ${item.description ?? ""}`.toLocaleLowerCase("pl").includes(query));
   return <>
@@ -131,7 +140,7 @@ export default function TeacherGroupsPage() {
         { title: "Aktywne grupy", value: loading || error ? "—" : groups.length, note: "Twoje grupy", icon: "users" },
         { title: "Aktywne zadania", value: "—", note: "Przypisywanie zadań wkrótce", icon: "tasks" },
         { title: "Zadania po terminie", value: "—", note: "Terminy zadań wkrótce", icon: "alert" },
-        { title: "Oczekujące zaproszenia", value: "—", note: "Zaproszenia wkrótce", icon: "mail" },
+        { title: "Oczekujące zaproszenia", value: loading || error ? "—" : groups.reduce((sum, item) => sum + item.pending_invitation_count, 0), note: "Wysłane do uczniów", icon: "mail" },
       ].map(metric => <article className="admin-card teacher-metric" key={metric.title}>
         <div className="teacher-metric-heading"><h2>{metric.title}</h2><span className={`group-metric-icon group-metric-${metric.icon}`} aria-hidden="true" /></div>
         <p className="teacher-metric-value">{metric.value}</p><p className="teacher-metric-note">{metric.note}</p>
@@ -151,7 +160,8 @@ export default function TeacherGroupsPage() {
         {groupId && group ? <>
           <GroupDetails group={group} editing={editing} pending={pending} confirmDelete={confirmDelete} deleteError={error}
             onEdit={() => { setEditing(true); setConfirmDelete(false); setFeedback(""); }}
-            onDelete={() => setConfirmDelete(true)} onCancelDelete={() => setConfirmDelete(false)} onConfirmDelete={remove} />
+            onDelete={() => setConfirmDelete(true)} onCancelDelete={() => setConfirmDelete(false)} onConfirmDelete={remove}
+            onInvite={() => setInviteGroup(group)} onChanged={() => { void refreshGroup(group.id); }} />
         </> : !groupId && <>
           {!groups.length && <div className="admin-card admin-state"><h2>Nie masz jeszcze żadnych grup</h2><p>Utwórz pierwszą grupę uczniów.</p></div>}
           {!!groups.length && !visibleGroups.length && <div className="admin-card admin-state"><h2>Brak pasujących grup</h2><p>Zmień nazwę lub opis w wyszukiwaniu.</p></div>}
@@ -164,10 +174,10 @@ export default function TeacherGroupsPage() {
               <div className="group-summary-progress-label"><span>Średni poziom ukończenia</span><span className="muted" title="Statystyki będą dostępne po wdrożeniu przypisywania zadań">—</span></div>
               <div className="group-empty-track" aria-hidden="true" />
             </div>
-            <dl className="group-card-details"><div><dt>Oczekujące zaproszenia</dt><dd>— <span className="muted">Zaproszenia wkrótce</span></dd></div></dl>
+            <dl className="group-card-details"><div><dt>Oczekujące zaproszenia</dt><dd>{item.pending_invitation_count}</dd></div></dl>
             <div className="group-card-footer">
               <div className="group-actions">
-                <button type="button" className="admin-text-button" disabled title="Zapraszanie uczniów będzie dostępne w kolejnym etapie">Zaproś</button>
+                <button type="button" className="admin-text-button" onClick={() => setInviteGroup(item)}>Zaproś</button>
                 <button type="button" className="admin-text-button" disabled title="Przypisywanie zadań będzie dostępne w kolejnym etapie">Przypisz zadanie</button>
               </div>
               <Link className="admin-button group-open-button" aria-label={`Otwórz grupę ${item.name}`} to={`/teacher/groups/${item.id}`}>Otwórz grupę</Link>
@@ -177,6 +187,7 @@ export default function TeacherGroupsPage() {
       </section>
       {editing && <GroupForm key={group?.id ?? "new"} group={group ?? undefined} onSave={saved}
         onCancel={() => setEditing(false)} onError={authError} />}
+      {inviteGroup && <GroupInvitationsDialog key={inviteGroup.id} group={inviteGroup} onClose={() => setInviteGroup(null)} onChanged={() => { void refreshGroup(inviteGroup.id); }} />}
     </div>}
   </>;
 }

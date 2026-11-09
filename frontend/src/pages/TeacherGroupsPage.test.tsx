@@ -4,14 +4,18 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { apiFetch } from "../api/client";
 import type { Group } from "../api/groups";
 import TeacherGroupsPage from "./TeacherGroupsPage";
+import { getInvitationCode, listGroupMembers } from "../api/groupInvitations";
 
 const auth = vi.hoisted(() => ({ retrySession: vi.fn() }));
 vi.mock("../auth/AuthProvider", () => ({ useAuth: () => auth }));
 vi.mock("../theme/ThemeProvider", () => ({ useTheme: () => ({ theme: "light" }) }));
 vi.mock("../api/client", () => ({ apiFetch: vi.fn() }));
+vi.mock("../api/groupInvitations", async importOriginal => ({
+  ...await importOriginal<typeof import("../api/groupInvitations")>(), listGroupMembers: vi.fn(), getInvitationCode: vi.fn(),
+}));
 
 const group: Group = { id: 7, name: "Podstawy Pythona", description: "Pierwsze kroki", teacher_id: 1, created_at: "2026-11-08T10:00:00Z",
-  age_range: null, achievements_enabled: true, study_streak_enabled: false, student_count: 0 };
+  age_range: null, achievements_enabled: true, study_streak_enabled: false, student_count: 0, pending_invitation_count: 0 };
 
 function renderPage(path = "/teacher/groups") {
   return render(<MemoryRouter initialEntries={[path]}><Routes>
@@ -22,6 +26,8 @@ function renderPage(path = "/teacher/groups") {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(listGroupMembers).mockResolvedValue([]);
+  vi.mocked(getInvitationCode).mockResolvedValue(null);
   vi.mocked(apiFetch).mockImplementation(async path => Response.json(path === "/teacher/groups" ? [group] : group));
 });
 afterEach(cleanup);
@@ -76,7 +82,7 @@ it("shows the actual member count and disabled future actions on each card", asy
   expect(within(list).getByText(/Liczba uczniów: 12 · Przypisane zadania:/)).toBeTruthy();
   expect(within(list).getByText("Średni poziom ukończenia")).toBeTruthy();
   expect(within(list).getByText("Oczekujące zaproszenia")).toBeTruthy();
-  expect((within(list).getByRole("button", { name: "Zaproś" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((within(list).getByRole("button", { name: "Zaproś" }) as HTMLButtonElement).disabled).toBe(false);
   expect((within(list).getByRole("button", { name: "Przypisz zadanie" }) as HTMLButtonElement).disabled).toBe(true);
 });
 
@@ -101,7 +107,7 @@ it("shows four metric tiles with real group count and unavailable future metrics
   const metrics = screen.getByRole("region", { name: "Statystyki grup" });
   expect(within(metrics).getAllByRole("article")).toHaveLength(4);
   expect(within(metrics).getByText("1")).toBeTruthy();
-  expect(within(metrics).getAllByText("—")).toHaveLength(3);
+  expect(within(metrics).getAllByText("—")).toHaveLength(2);
 });
 
 it("closes the modal with Escape without saving and restores page scroll", async () => {
