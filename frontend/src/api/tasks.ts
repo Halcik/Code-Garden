@@ -14,6 +14,7 @@ export type Task = {
   is_archived: boolean; author_id: number; created_at: string; updated_at: string;
 };
 export type TaskFilters = {
+  assigned?: string;
   archived?: string; q: string; topic: string; difficulty: string; status: string;
   sort_by: string; sort_order: string; offset: number;
 };

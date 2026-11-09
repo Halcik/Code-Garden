@@ -52,6 +52,8 @@
 .teacher-layout .teacher-table td { height: 56px; padding: 12px 16px; }
 .teacher-open-link { color: var(--color-accent); font-weight: 600; text-decoration: none; }
 .teacher-open-link:hover { text-decoration: underline; }
+.teacher-assign-button { padding: 0; border: 0; background: transparent; font: inherit; font-weight: 600; cursor: pointer; }
+.teacher-assign-button:disabled { opacity: .5; cursor: not-allowed; text-decoration: none; }
 .teacher-task-link { color: var(--color-text); font-weight: 600; text-decoration: none; }
 .teacher-task-link:hover { color: var(--color-accent); text-decoration: underline; }
 .teacher-table tbody tr:hover { background: var(--color-surface-muted); }

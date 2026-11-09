@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.security import create_access_token
+from app.models.task_assignment import TaskAssignment
 from app.models.task import Task, TaskDifficulty, TaskStatus, TaskType
 from app.models.user import User, UserRole, TeacherApproval
 
@@ -24,9 +25,11 @@ def catalog_users(client, db_engine):
             ("Draft", TaskStatus.DRAFT, False, TaskDifficulty.EASY),
             ("Archived", TaskStatus.READY, True, TaskDifficulty.EASY),
         ]:
-            db.add(Task(title=title, topic="Podstawy", author_id=users["TEACHER"],
+            task = Task(title=title, topic="Podstawy", author_id=users["TEACHER"],
                         difficulty=difficulty, task_type=TaskType.STANDARD,
-                        status=status, is_archived=archived, instructions="Secret instructions"))
+                        status=status, is_archived=archived, instructions="Secret instructions")
+            db.add(task); db.flush()
+            db.add(TaskAssignment(task_id=task.id, student_id=users["STUDENT"], assigned_by_teacher_id=users["TEACHER"]))
         db.commit()
         return users
 
@@ -91,6 +94,7 @@ def test_personal_progress_filters_and_pagination(client, catalog_users, db_engi
             task = Task(title=state, topic=topic, author_id=catalog_users["TEACHER"],
                         difficulty=TaskDifficulty.EASY, task_type=TaskType.STANDARD, status=TaskStatus.READY)
             db.add(task); db.flush(); ids[state] = task.id
+            db.add(TaskAssignment(task_id=task.id, student_id=catalog_users["STUDENT"], assigned_by_teacher_id=catalog_users["TEACHER"]))
             if state != "NOT_STARTED":
                 db.add(SolutionDraft(student_id=catalog_users["STUDENT"], task_id=task.id, source_code="newer draft"))
             # Failed submissions still count as completed. Another student's submission does not.

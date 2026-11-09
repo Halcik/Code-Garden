@@ -125,6 +125,9 @@ Konfiguracja API frontendu, opis flow i ręczny test end-to-end są w [frontend/
 
 ## Uruchamianie kodu Python (KAN-32)
 
+Przypisywanie zadań uczniom i grupom oraz zasady widoku „Moje zadania”:
+[KAN-45](docs/KAN-45.md).
+
 Własny obraz Judge0 CE 1.13.1 zawiera cztery środowiska CPython 3.11–3.14
 (domyślnie zadania używają 3.13), również dla Docker Desktop/WSL2 z cgroups v2.
 Build, start, wykrywanie rzeczywistych ID języków i smoke test przez sandbox:

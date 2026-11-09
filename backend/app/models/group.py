@@ -6,6 +6,8 @@ from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from app.db.base import Base
 from app.models.group_invitation import GroupInvitation
+from app.models.task import Task, TaskStatus
+from app.models.task_assignment import TaskAssignment
 
 if TYPE_CHECKING:
     from app.models.user import User
@@ -30,6 +32,12 @@ class StudentGroup(Base):
     pending_invitation_count: Mapped[int] = column_property(
         select(func.count()).where(GroupInvitation.group_id == id, GroupInvitation.status == "PENDING")
         .correlate_except(GroupInvitation).scalar_subquery()
+    )
+    active_task_count: Mapped[int] = column_property(
+        select(func.count(func.distinct(TaskAssignment.task_id)))
+        .join(Task, Task.id == TaskAssignment.task_id)
+        .where(TaskAssignment.group_id == id, Task.status == TaskStatus.READY, Task.is_archived.is_(False))
+        .correlate_except(TaskAssignment, Task).scalar_subquery()
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

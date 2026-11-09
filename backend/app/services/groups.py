@@ -2,13 +2,15 @@ from datetime import datetime, timedelta, timezone
 import secrets
 
 from fastapi import HTTPException
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.models.group import StudentGroup, group_students
 from app.models.group_invitation import GroupInvitation, GroupInvitationCode
 from app.models.user import AccountStatus, User, UserRole
+from app.models.task import Task, TaskStatus
+from app.models.task_assignment import TaskAssignment
 
 
 def utc_now() -> datetime:
@@ -136,3 +138,14 @@ def remove_member(db: Session, group_id: int, student_id: int):
 def public_group(group: StudentGroup):
     return dict(id=group.id, name=group.name, description=group.description, age_range=group.age_range,
                 teacher_login=group.teacher.login, student_count=group.student_count, created_at=group.created_at)
+
+
+def public_student_groups(db: Session, student_id: int, items):
+    items = list(items)
+    counts = dict(db.execute(select(TaskAssignment.group_id, func.count(TaskAssignment.id))
+        .join(Task, Task.id == TaskAssignment.task_id)
+        .where(TaskAssignment.student_id == student_id,
+               TaskAssignment.group_id.in_([group.id for group in items]),
+               Task.status == TaskStatus.READY, Task.is_archived.is_(False))
+        .group_by(TaskAssignment.group_id)).all()) if items else {}
+    return [dict(**public_group(group), active_task_count=counts.get(group.id, 0)) for group in items]

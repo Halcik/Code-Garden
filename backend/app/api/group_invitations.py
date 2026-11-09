@@ -87,21 +87,21 @@ def student_groups(student: User = Depends(student_guard), db: Session = Depends
     items = db.scalars(select(StudentGroup).join(group_students, group_students.c.group_id == StudentGroup.id)
         .where(group_students.c.student_id == student.id).options(joinedload(StudentGroup.teacher))
         .order_by(StudentGroup.created_at.desc(), StudentGroup.id.desc()))
-    return [groups.public_group(group) for group in items]
+    return groups.public_student_groups(db, student.id, items)
 
 
 @student_router.post("/groups/join", response_model=StudentGroupResponse, dependencies=[Depends(check_origin)])
 def join_group(payload: JoinByCode, student: User = Depends(student_guard), db: Session = Depends(get_db)):
     auth_limiter.check(("group-code", student.id), 30)
     group_id = groups.join_by_code(db, student.id, payload.code)
-    return groups.public_group(groups.find_group(db, group_id))
+    return groups.public_student_groups(db, student.id, [groups.find_group(db, group_id)])[0]
 
 
 @student_router.get("/groups/{group_id}", response_model=StudentGroupResponse)
 def get_student_group(group_id: int, student: User = Depends(student_guard), db: Session = Depends(get_db)):
     if not groups.is_member(db, group_id, student.id):
         raise HTTPException(404, "Group not found")
-    return groups.public_group(groups.find_group(db, group_id))
+    return groups.public_student_groups(db, student.id, [groups.find_group(db, group_id)])[0]
 
 
 @student_router.delete("/groups/{group_id}/membership", status_code=204, dependencies=[Depends(check_origin)])

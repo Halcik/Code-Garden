@@ -8,6 +8,7 @@ import plusIcon from "../assets/teacher/plus.svg";
 import GroupDetails from "../components/teacher/GroupDetails";
 import GroupDialog from "../components/teacher/GroupDialog";
 import GroupInvitationsDialog from "../components/teacher/GroupInvitationsDialog";
+import GroupAssignmentDialog from "../components/teacher/GroupAssignmentDialog";
 import "../styles/teacher-groups.css";
 
 function GroupForm({ group, onSave, onCancel, onError }: {
@@ -72,6 +73,8 @@ export default function TeacherGroupsPage() {
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [inviteGroup, setInviteGroup] = useState<Group | null>(null);
+  const [assignmentGroup, setAssignmentGroup] = useState<Group | null>(null);
+  const [assignmentRevision, setAssignmentRevision] = useState(0);
   const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState("");
   const actionLock = useRef(false);
@@ -81,6 +84,8 @@ export default function TeacherGroupsPage() {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError(""); setGroup(null); setGroups([]); setEditing(false); setConfirmDelete(false); setInviteGroup(null);
+    setAssignmentGroup(null);
+    setAssignmentRevision(0);
     const load = async () => {
       try {
         if (groupId) {
@@ -138,7 +143,7 @@ export default function TeacherGroupsPage() {
     {!groupId && <section className="teacher-metrics" aria-label="Statystyki grup">
       {[
         { title: "Aktywne grupy", value: loading || error ? "—" : groups.length, note: "Twoje grupy", icon: "users" },
-        { title: "Aktywne zadania", value: "—", note: "Przypisywanie zadań wkrótce", icon: "tasks" },
+        { title: "Aktywne zadania", value: loading || error ? "—" : groups.reduce((sum, item) => sum + (item.active_task_count ?? 0), 0), note: "Łącznie w Twoich grupach", icon: "tasks" },
         { title: "Zadania po terminie", value: "—", note: "Terminy zadań wkrótce", icon: "alert" },
         { title: "Oczekujące zaproszenia", value: loading || error ? "—" : groups.reduce((sum, item) => sum + item.pending_invitation_count, 0), note: "Wysłane do uczniów", icon: "mail" },
       ].map(metric => <article className="admin-card teacher-metric" key={metric.title}>
@@ -158,27 +163,27 @@ export default function TeacherGroupsPage() {
     {!loading && (!error || group) && <div className="group-columns">
       <section className="group-list" aria-label={groupId ? "Szczegóły grupy" : "Lista grup"}>
         {groupId && group ? <>
-          <GroupDetails group={group} editing={editing} pending={pending} confirmDelete={confirmDelete} deleteError={error}
+          <GroupDetails group={group} editing={editing} pending={pending} confirmDelete={confirmDelete} deleteError={error} assignmentRevision={assignmentRevision}
             onEdit={() => { setEditing(true); setConfirmDelete(false); setFeedback(""); }}
             onDelete={() => setConfirmDelete(true)} onCancelDelete={() => setConfirmDelete(false)} onConfirmDelete={remove}
-            onInvite={() => setInviteGroup(group)} onChanged={() => { void refreshGroup(group.id); }} />
+            onInvite={() => setInviteGroup(group)} onAssign={() => setAssignmentGroup(group)} onChanged={() => { void refreshGroup(group.id); }} />
         </> : !groupId && <>
           {!groups.length && <div className="admin-card admin-state"><h2>Nie masz jeszcze żadnych grup</h2><p>Utwórz pierwszą grupę uczniów.</p></div>}
           {!!groups.length && !visibleGroups.length && <div className="admin-card admin-state"><h2>Brak pasujących grup</h2><p>Zmień nazwę lub opis w wyszukiwaniu.</p></div>}
           {visibleGroups.map(item => <article className="admin-card group-card" key={item.id}>
             <div className="group-card-heading"><span className="group-icon" aria-hidden="true" /><div>
               <h2><Link className="group-name-link" to={`/teacher/groups/${item.id}`}>{item.name}</Link></h2>
-              <p className="muted">Liczba uczniów: {item.student_count} · Przypisane zadania: <span title="Przypisywanie zadań będzie dostępne w kolejnym etapie">—</span></p>
+              <p className="muted">Liczba uczniów: {item.student_count} · Przypisane zadania: <span title="Licznik przypisań będzie dostępny w kolejnym etapie">—</span></p>
             </div></div>
             <div className="group-summary-progress">
-              <div className="group-summary-progress-label"><span>Średni poziom ukończenia</span><span className="muted" title="Statystyki będą dostępne po wdrożeniu przypisywania zadań">—</span></div>
+              <div className="group-summary-progress-label"><span>Średni poziom ukończenia</span><span className="muted" title="Statystyki wykonania będą dostępne w kolejnym etapie">—</span></div>
               <div className="group-empty-track" aria-hidden="true" />
             </div>
             <dl className="group-card-details"><div><dt>Oczekujące zaproszenia</dt><dd>{item.pending_invitation_count}</dd></div></dl>
             <div className="group-card-footer">
               <div className="group-actions">
                 <button type="button" className="admin-text-button" onClick={() => setInviteGroup(item)}>Zaproś</button>
-                <button type="button" className="admin-text-button" disabled title="Przypisywanie zadań będzie dostępne w kolejnym etapie">Przypisz zadanie</button>
+                <button type="button" className="admin-text-button" onClick={() => setAssignmentGroup(item)}>Przypisz zadanie</button>
               </div>
               <Link className="admin-button group-open-button" aria-label={`Otwórz grupę ${item.name}`} to={`/teacher/groups/${item.id}`}>Otwórz grupę</Link>
             </div>
@@ -188,6 +193,7 @@ export default function TeacherGroupsPage() {
       {editing && <GroupForm key={group?.id ?? "new"} group={group ?? undefined} onSave={saved}
         onCancel={() => setEditing(false)} onError={authError} />}
       {inviteGroup && <GroupInvitationsDialog key={inviteGroup.id} group={inviteGroup} onClose={() => setInviteGroup(null)} onChanged={() => { void refreshGroup(inviteGroup.id); }} />}
+      {assignmentGroup && <GroupAssignmentDialog key={assignmentGroup.id} group={assignmentGroup} onClose={() => setAssignmentGroup(null)} onAssigned={() => { setAssignmentRevision(value => value + 1); void refreshGroup(assignmentGroup.id); }} />}
     </div>}
   </>;
 }

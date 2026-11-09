@@ -161,7 +161,7 @@ def endpoint():
     from app.api.student import get_judge0_service
     from app.db.session import get_db
     from app.models.user import UserRole, AccountStatus, TeacherApproval
-    user = SimpleNamespace(role=UserRole.STUDENT, status=AccountStatus.ACTIVE, teacher_approval=TeacherApproval.APPROVED)
+    user = SimpleNamespace(id=1, role=UserRole.STUDENT, status=AccountStatus.ACTIVE, teacher_approval=TeacherApproval.APPROVED)
     task = SimpleNamespace(python_version="3.12", time_limit_seconds=3, memory_limit_mb=64)
     db = SimpleNamespace(scalar=lambda query: task)
     service = SimpleNamespace(run_code=AsyncMock(return_value={"status": "completed", "stdout": "hello"}))

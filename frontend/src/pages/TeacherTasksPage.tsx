@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { DIFFICULTIES, STATUSES, TASK_TYPES, listTasks, archiveTask, restoreTask, TasksApiError } from "../api/tasks";
-import type { TaskFilters, TaskList } from "../api/tasks";
+import type { Task, TaskFilters, TaskList } from "../api/tasks";
+import TaskAssignments from "../components/teacher/TaskAssignments";
 import { useAuth } from "../auth/AuthProvider";
 import DesignIcon from "../components/admin/DesignIcon";
 import LogoutButton from "../components/LogoutButton";
@@ -18,12 +19,12 @@ import "../styles/teacher-tasks.css";
 
 
 const initialFilters: TaskFilters = {
-  q: "", topic: "", difficulty: "", status: "", archived: "", sort_by: "updated_at", sort_order: "desc", offset: 0,
+  q: "", topic: "", difficulty: "", status: "", archived: "", assigned: "", sort_by: "updated_at", sort_order: "desc", offset: 0,
 };
 
 const taskMetrics = [
   { title: "Wszystkie zadania", icon: metricTasksIcon, status: "" },
-  { title: "Przypisane", icon: metricAssignedIcon, status: null },
+  { title: "Przypisane", icon: metricAssignedIcon, status: "ASSIGNED" },
   { title: "Wersje robocze", icon: metricDraftsIcon, status: "DRAFT" },
   { title: "Proces publikacji", icon: metricPublicationIcon, status: null },
 ];
@@ -41,7 +42,7 @@ function TaskCountMetric({ title, icon, status, revision }: {
     if (status === null) return;
     const controller = new AbortController();
     setLoading(true); setError(false);
-    listTasks({ ...initialFilters, status, archived: status === "DRAFT" ? "false" : "" }, controller.signal, 1).then(result => {
+    listTasks({ ...initialFilters, status: status === "ASSIGNED" ? "" : status, assigned: status === "ASSIGNED" ? "true" : "", archived: status === "DRAFT" ? "false" : "" }, controller.signal, 1).then(result => {
       if (!controller.signal.aborted) setCount(result.total);
     }).catch(() => {
       if (!controller.signal.aborted) { setCount(null); setError(true); }
@@ -64,6 +65,7 @@ function TaskCountMetric({ title, icon, status, revision }: {
       : error ? <div className="teacher-metric-note" role="alert">Nie udało się pobrać liczby zadań.
         <button className="admin-text-button" onClick={() => setAttempt(value => value + 1)}>Spróbuj ponownie</button>
       </div> : loading ? <p className="teacher-metric-note">Ładowanie liczby zadań…</p>
+      : status === "ASSIGNED" ? <p className="teacher-metric-note">Zadania przypisane uczniom</p>
       : status === "" && count !== null && archivedCount !== null ? <p className="teacher-metric-note">{Math.max(0, count - archivedCount)} aktywnych · {archivedCount} zarchiwizowanych</p> : null}
   </article>;
 }
@@ -105,6 +107,7 @@ export default function TeacherTasksPage() {
   const [pendingId, setPendingId] = useState<number | null>(null);
   const [actionError, setActionError] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [assignmentTask, setAssignmentTask] = useState<Task | null>(null);
   const actionLock = useRef(false);
 
   useEffect(() => {
@@ -162,7 +165,7 @@ export default function TeacherTasksPage() {
   function filterChange(key: string, value: string) {
     setFilters(previous => ({ ...previous, [key]: value, offset: 0 }));
   }
-  const filtered = Boolean(filters.q || filters.topic || filters.status || filters.difficulty || filters.archived);
+  const filtered = Boolean(filters.q || filters.topic || filters.status || filters.difficulty || filters.archived || filters.assigned);
   function clearFilters() { setSearch(""); setTopic(""); setFilters(initialFilters); }
 
   return <>
@@ -175,12 +178,12 @@ export default function TeacherTasksPage() {
       {taskMetrics.map(metric => <TaskCountMetric key={metric.title} {...metric} revision={revision} />)}
     </section>
     <div className="admin-card teacher-tabs" role="group" aria-label="Status zadań">
-      <button type="button" aria-pressed={!filters.status && !filters.archived} onClick={() => setFilters(previous => ({ ...previous, status: "", archived: "", offset: 0 }))}>Wszystkie</button>
-      <button type="button" disabled title="Placeholder — przypisywanie zadań wkrótce">Przypisane</button>
-      <button type="button" aria-pressed={filters.status === "DRAFT" && filters.archived === "false"} onClick={() => setFilters(previous => ({ ...previous, status: "DRAFT", archived: "false", offset: 0 }))}>Wersje robocze</button>
+      <button type="button" aria-pressed={!filters.status && !filters.archived && !filters.assigned} onClick={() => setFilters(previous => ({ ...previous, status: "", archived: "", assigned: "", offset: 0 }))}>Wszystkie</button>
+      <button type="button" aria-pressed={filters.assigned === "true"} onClick={() => setFilters(previous => ({ ...previous, status: "", archived: "", assigned: "true", offset: 0 }))}>Przypisane</button>
+      <button type="button" aria-pressed={!filters.assigned && filters.status === "DRAFT" && filters.archived === "false"} onClick={() => setFilters(previous => ({ ...previous, status: "DRAFT", archived: "false", assigned: "", offset: 0 }))}>Wersje robocze</button>
       <button type="button" disabled title="Placeholder — publikacja wkrótce">Publiczne</button>
       <button type="button" disabled title="Placeholder — recenzje wkrótce">W recenzji</button>
-      <button type="button" aria-pressed={filters.archived === "true"} onClick={() => setFilters(previous => ({ ...previous, status: "", archived: "true", offset: 0 }))}>Zarchiwizowane</button>
+      <button type="button" aria-pressed={!filters.assigned && filters.archived === "true"} onClick={() => setFilters(previous => ({ ...previous, status: "", archived: "true", assigned: "", offset: 0 }))}>Zarchiwizowane</button>
     </div>
     {actionError && <p role="alert" className="error-message">{actionError}</p>}
     {feedback && <p role="status" className="task-save-success">{feedback}</p>}
@@ -209,12 +212,15 @@ export default function TeacherTasksPage() {
         : error ? <div className="admin-state" role="alert"><p className="error-message">{error}</p><button className="admin-button" onClick={() => setRevision(value => value + 1)}>Spróbuj ponownie</button></div>
         : !data?.items.length ? <div className="admin-state" role="status"><h2>{filtered ? "Brak pasujących zadań" : "Nie masz jeszcze żadnych zadań"}</h2><p>{filtered ? "Zmień wyszukiwanie lub wyczyść filtry." : "Twoje zadania pojawią się na tej liście."}</p>{filtered && <button className="admin-button" onClick={clearFilters}>Wyczyść filtry</button>}</div>
         : <><div className="users-table-scroll"><table className="users-table teacher-table"><caption className="sr-only">Zadania zalogowanego nauczyciela</caption>
-          <thead><tr>{["Zadanie", "Temat i poziom", "Typ", "Stan", "Aktualizacja", "Użycie", "Akcje"].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
+          <thead><tr>{["Zadanie", "Temat i poziom", "Typ", "Stan", "Aktualizacja", "Przypisz", "Użycie", "Akcje"].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
           <tbody>{data.items.map(task => <tr key={task.id}>
             <td><Link to={`/teacher/tasks/${task.id}/edit`} className="teacher-task-link">{task.title}</Link></td>
             <td>{task.topic} · {DIFFICULTIES[task.difficulty]}</td><td>{TASK_TYPES[task.task_type]}</td>
             <td><span className={`user-badge ${!task.is_archived && task.status === "READY" ? "status-active" : "task-draft"}`}>{task.is_archived ? "Zarchiwizowane" : STATUSES[task.status]}</span></td>
             <td><time dateTime={task.updated_at}>{new Date(task.updated_at).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })}</time></td>
+            <td><button type="button" className="teacher-open-link teacher-assign-button" aria-label={`Przypisz zadanie: ${task.title}`} disabled={pendingId !== null || task.is_archived || task.status !== "READY"}
+              title={task.is_archived ? "Przywróć zadanie przed przypisaniem" : task.status !== "READY" ? "Zadanie musi mieć status Gotowe" : undefined}
+              onClick={() => { setMenuId(null); setAssignmentTask(task); }}>Przypisz</button></td>
             <td>{task.is_archived && <p>Tylko do odczytu</p>}<Link className="teacher-open-link" to={`/teacher/tasks/${task.id}/submissions`}>Rozwiązania uczniów</Link></td>
             <td><div className="teacher-row-actions" aria-busy={pendingId === task.id}>
               {task.is_archived ? <button className="admin-text-button" disabled={pendingId !== null} onClick={() => changeArchive(task.id, false)}>{pendingId === task.id ? "Przywracanie…" : "Przywróć"}</button>
@@ -230,5 +236,6 @@ export default function TeacherTasksPage() {
           <button className="admin-button" disabled={data.offset + data.limit >= data.total} onClick={() => setFilters(previous => ({ ...previous, offset: previous.offset + data.limit }))}>Następna</button>
         </nav></>}
     </section>
+    {assignmentTask && <TaskAssignments key={assignmentTask.id} taskId={String(assignmentTask.id)} available={true} onClose={() => { setAssignmentTask(null); setRevision(value => value + 1); }} />}
   </>;
 }

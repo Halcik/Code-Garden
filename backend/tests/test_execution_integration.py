@@ -9,6 +9,7 @@ from app.api.student import get_judge0_service
 from app.core.config import get_settings
 from app.core.security import create_access_token
 from app.main import app
+from app.models.group import StudentGroup
 from app.models.task import Task
 from app.models.user import User, UserRole, TeacherApproval
 
@@ -23,6 +24,8 @@ def actors(client, db_engine):
             db.add(user)
             db.flush()
             ids[role.value] = user.id
+        db.add(StudentGroup(name="Execution students", teacher_id=ids["TEACHER"],
+                            students=[db.get(User, ids["STUDENT"])]))
         db.commit()
     return ids
 
@@ -37,7 +40,10 @@ def create(client):
     response = client.post("/teacher/tasks", json={"title": "Run", "topic": "Python", "difficulty": "EASY",
         "task_type": "STANDARD", "status": "READY", "instructions": "Read stdin"})
     assert response.status_code == 201
-    return response.json()
+    task = response.json()
+    group = next(group for group in client.get("/teacher/groups").json() if group["name"] == "Execution students")
+    assert client.post(f"/teacher/tasks/{task['id']}/group-assignments", json={"group_id": group["id"]}).status_code == 200
+    return task
 
 
 @pytest.mark.parametrize("version", ["3.11", "3.12", "3.13", "3.14"])

@@ -5,6 +5,7 @@ export type Group = {
   age_range: string | null; achievements_enabled: boolean; study_streak_enabled: boolean;
   student_count: number;
   pending_invitation_count: number;
+  active_task_count?: number;
 };
 export type GroupInput = Pick<Group, "name" | "description" | "age_range" | "achievements_enabled" | "study_streak_enabled">;
 

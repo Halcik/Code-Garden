@@ -1,16 +1,20 @@
 import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
 import type { Group } from "../../api/groups";
 import GroupDialog from "./GroupDialog";
 import GroupCodePanel from "./GroupCodePanel";
 import GroupMembers from "./GroupMembers";
+import GroupTaskAssignments from "./GroupTaskAssignments";
 
 type Props = {
   group: Group; editing: boolean; pending: boolean; confirmDelete: boolean; deleteError: string;
   onEdit: () => void; onDelete: () => void; onCancelDelete: () => void; onConfirmDelete: () => void;
-  onInvite: () => void; onChanged: () => void;
+  onInvite: () => void; onAssign: () => void; onChanged: () => void; assignmentRevision: number;
 };
 
-export default function GroupDetails({ group, editing, pending, confirmDelete, deleteError, onEdit, onDelete, onCancelDelete, onConfirmDelete, onInvite, onChanged }: Props) {
+export default function GroupDetails({ group, editing, pending, confirmDelete, deleteError, onEdit, onDelete, onCancelDelete, onConfirmDelete, onInvite, onAssign, onChanged, assignmentRevision }: Props) {
+  const [view, setView] = useState<"students" | "tasks">("students");
+  useEffect(() => { if (assignmentRevision > 0) setView("tasks"); }, [assignmentRevision]);
   return <div className="group-detail-view">
     <div className="teacher-heading admin-page-heading group-detail-heading">
       <div className="group-detail-title"><Link className="group-breadcrumb" to="/teacher/groups">Grupy / Aktywne</Link>
@@ -19,31 +23,32 @@ export default function GroupDetails({ group, editing, pending, confirmDelete, d
         <p className="group-description">{group.description || "Brak opisu."}</p>
       </div>
       <div className="group-detail-actions">
-        <button className="admin-button primary" disabled title="Przypisywanie zadań będzie dostępne w kolejnym etapie"><span className="group-detail-icon assign" aria-hidden="true" />Przypisz zadanie</button>
+        <button className="admin-button primary" disabled={editing || pending} onClick={onAssign}><span className="group-detail-icon assign" aria-hidden="true" />Przypisz zadanie</button>
       </div>
     </div>
     <section className="teacher-metrics" aria-label="Statystyki grupy">
       {[
         { title: "Średni poziom ukończenia", icon: "progress", note: "Postępy grupy wkrótce" },
-        { title: "Aktywne zadania", icon: "tasks", note: "Przypisywanie zadań wkrótce" },
+        { title: "Aktywne zadania", icon: "tasks", note: "Gotowe zadania przypisane grupie", value: group.active_task_count ?? 0 },
         { title: "Uczniowie z zadaniami po terminie", icon: "alert", note: "Terminy zadań wkrótce" },
         { title: "Wymaga oceny", icon: "reviews", note: "Rozwiązania grupy wkrótce" },
       ].map(metric => <article className="admin-card teacher-metric" key={metric.title}>
         <div className="teacher-metric-heading"><h2>{metric.title}</h2><span className={`group-metric-icon group-metric-${metric.icon}`} aria-hidden="true" /></div>
-        <p className="teacher-metric-value">—</p><p className="teacher-metric-note">{metric.note}</p>
+        <p className="teacher-metric-value">{metric.value ?? "—"}</p><p className="teacher-metric-note">{metric.note}</p>
       </article>)}
     </section>
     <div className="admin-card teacher-tabs group-detail-tabs" role="group" aria-label="Widoki grupy">
-      <button type="button" aria-pressed="true">Uczniowie</button>
-      <button type="button" disabled title="Zadania grupy będą dostępne w kolejnym etapie">Zadania</button>
+      <button type="button" aria-pressed={view === "students"} onClick={() => setView("students")}>Uczniowie</button>
+      <button type="button" aria-pressed={view === "tasks"} onClick={() => setView("tasks")}>Zadania</button>
       <button type="button" disabled title="Postępy grupy będą dostępne w kolejnym etapie">Postęp</button>
     </div>
     <div className="group-detail-columns">
-      <GroupMembers group={group} onInvite={onInvite} onChanged={onChanged} />
+      {view === "students" ? <GroupMembers group={group} onInvite={onInvite} onChanged={onChanged} />
+        : <GroupTaskAssignments key={group.id} groupId={group.id} revision={assignmentRevision} onAssign={onAssign} onChanged={onChanged} />}
       <aside className="group-detail-sidebar" aria-label="Informacje i zarządzanie grupą">
         <GroupCodePanel key={group.id} groupId={group.id} />
         <section className="admin-card group-card"><h2>Status zadania</h2><p className="group-assignment-value">—</p>
-          <p className="group-description">Przypisywanie zadań do grup będzie dostępne w kolejnym etapie.</p>
+          <p className="group-description">Przypisz zadanie przyciskiem u góry. Listę przypisań i możliwość ich usunięcia znajdziesz w zakładce Zadania.</p>
           <div className="group-empty-track" aria-hidden="true" />
         </section>
         <section className="admin-card group-card"><h2>Zarządzanie grupą</h2>

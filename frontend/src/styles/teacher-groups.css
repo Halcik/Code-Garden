@@ -83,6 +83,51 @@
 .group-pending-invitations > div { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
 .group-code-value { display: block; overflow-wrap: anywhere; user-select: all; padding: 12px; background: var(--color-surface-muted); border: 1px solid var(--color-border); border-radius: 8px; font-size: 16px; }
 .group-member-login { font-weight: 600; color: var(--color-text); }
+.task-assignment-fields { padding: 0; margin: 0; border: 0; min-width: 0; }
+.task-assignment-fields legend { margin-bottom: 12px; font-size: 14px; font-weight: 600; }
+.task-assignment-fields h3 { margin: 8px 0 0; font-size: 14px; }
+.task-assignment-table-scroll { max-height: 240px; overflow: auto; border: 1px solid var(--color-border); border-radius: 10px; }
+.task-assignment-table-scroll:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.task-assignment-table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; font-size: 13px; }
+.task-assignment-table th { position: sticky; top: 0; z-index: 1; padding: 12px 14px; background: var(--color-surface-muted); border-bottom: 1px solid var(--color-border); color: var(--color-text-secondary); font-size: 11px; font-weight: 600; white-space: nowrap; }
+.task-assignment-table td { padding: 12px 14px; color: var(--color-text); border-bottom: 1px solid var(--color-border); overflow-wrap: anywhere; }
+.task-assignment-table tbody tr:last-child td { border-bottom: 0; }
+.task-assignment-table tbody tr:hover { background: var(--color-surface-muted); }
+.task-assignment-table tbody tr.is-selected { background: var(--color-brand-surface); }
+.task-assignment-table .task-assignment-login { font-weight: 600; }
+.task-assignment-table time { white-space: nowrap; color: var(--color-text-secondary); font-size: 12px; }
+.task-assignment-table input[type="radio"] { width: 16px; height: 16px; padding: 0; margin: 0; accent-color: var(--color-accent); cursor: pointer; }
+.task-assignment-table td label { display: block; color: var(--color-text); font-size: 13px; cursor: pointer; font-weight: 600; }
+.group-assigned-task-list { display: flex; flex-direction: column; }
+.group-assigned-task { display: flex; align-items: center; gap: 14px; padding: 20px; border-top: 1px solid var(--color-border); }
+.group-assigned-task h3 { margin: 0; font-size: 14px; color: var(--color-text); overflow-wrap: anywhere; }
+.group-assigned-task p { margin: 0; font-size: 12px; color: var(--color-text-secondary); }
+.group-assigned-task .admin-text-button { flex-shrink: 0; }
+.group-task-feedback { margin: 0 20px 16px; }
+@media (max-width: 600px) { .group-assigned-task { flex-wrap: wrap; } .group-assigned-task > .admin-text-button { margin-left: auto; } }
+.group-assignment-dialog { width: min(620px, calc(100vw - 32px)); }
+.group-assignment-dialog .group-form-heading p { margin-top: 6px; color: var(--color-text-secondary); font-size: 13px; }
+.group-assignment-search { flex-direction: row; align-items: center; gap: 10px; }
+.group-assignment-search label { flex: 1; min-width: 0; }
+.group-assignment-search .admin-button { flex-shrink: 0; }
+.group-assignment-list-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.group-assignment-list-heading h3 { margin: 0; font-size: 14px; }
+.group-assignment-list-heading .muted { font-size: 12px; }
+.group-assignment-options { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 2px; border: 0; min-width: 0; max-height: 320px; overflow-y: auto; }
+.group-assignment-option { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); cursor: pointer; transition: border-color .15s, background .15s; }
+.group-assignment-option:hover { border-color: var(--color-accent); background: var(--color-surface-muted); }
+.group-assignment-option.is-selected { border-color: var(--color-accent); background: var(--color-brand-surface); }
+.group-assignment-option:focus-within { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.group-assignment-option input { margin: 0; width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--color-accent); }
+.group-assignment-option .group-assignment-task-icon { width: 20px; height: 20px; color: var(--color-accent); }
+.group-assignment-task-copy { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.group-assignment-task-copy strong { font-size: 14px; font-weight: 600; color: var(--color-text); }
+.group-assignment-task-copy > span { font-size: 12px; color: var(--color-text-secondary); }
+.group-assignment-difficulty { padding: 4px 8px; border-radius: 999px; font-size: 11px; color: var(--color-accent); background: var(--color-brand-surface); }
+.group-assignment-pagination { justify-content: space-between; gap: 8px; font-size: 12px; color: var(--color-text-secondary); }
+.group-assignment-footer { padding-top: 16px; border-top: 1px solid var(--color-border); }
+.group-assignment-options:disabled .group-assignment-option { cursor: wait; opacity: .65; }
+@media (max-width: 480px) { .group-assignment-dialog { padding: 18px; } .group-assignment-option { gap: 8px; padding: 12px; } .group-assignment-option .group-assignment-task-icon { display: none; } }
 @media (max-width: 1200px) { .group-detail-heading { flex-direction: column; align-items: flex-start; } .group-detail-columns { grid-template-columns: minmax(0, 1fr) 260px; } }
 @media (max-width: 960px) { .group-detail-columns { grid-template-columns: minmax(0, 1fr); } .group-detail-sidebar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; } }
 @media (max-width: 600px) { .group-detail-sidebar { grid-template-columns: minmax(0, 1fr); } }

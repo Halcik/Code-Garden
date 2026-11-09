@@ -7,6 +7,7 @@ export type GroupInvitation = {
 };
 export type InvitationCode = { code: string; created_at: string; expires_at: string };
 export type StudentGroup = { id: number; name: string; description: string | null; age_range: string | null;
+  active_task_count?: number;
   teacher_login: string; student_count: number; created_at: string };
 const base = (id: number) => `/teacher/groups/${id}`;
 export const searchGroupStudents = (id: number, q: string, signal: AbortSignal) => groupRequest<StudentIdentity[]>(`${base(id)}/students/search?${new URLSearchParams({ q })}`, { signal });

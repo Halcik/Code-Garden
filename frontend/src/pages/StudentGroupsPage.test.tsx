@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { apiFetch } from "../api/client";
 import StudentGroupsPage from "./StudentGroupsPage";
@@ -27,6 +27,16 @@ beforeEach(() => {
   vi.mocked(apiFetch).mockImplementation(async path => read(path));
 });
 afterEach(cleanup);
+
+it.each([["/student/groups", 0], ["/student/groups", 3], ["/student/groups/7", 2]])("shows personal active task count at %s: %s", async (path, count) => {
+  const countedGroup = { ...group, active_task_count: count };
+  vi.mocked(apiFetch).mockImplementation(async url => Response.json(url.startsWith("/student/tasks?") ? { total: 86, items: [] }
+    : url === "/student/group-invitations" ? [] : url === "/student/groups" ? [countedGroup] : countedGroup));
+  renderPage(path);
+  const label = await screen.findByText("Twoje aktywne zadania");
+  expect(within(label.parentElement!).getByText(String(count))).toBeTruthy();
+  expect(within(label.parentElement!).queryByText("—")).toBeNull();
+});
 
 it("shows empty memberships, independent catalog access and join form without joining automatically", async () => {
   renderPage();

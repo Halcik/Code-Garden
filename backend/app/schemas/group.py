@@ -35,3 +35,4 @@ class GroupResponse(GroupCreate):
     created_at: datetime
     student_count: int
     pending_invitation_count: int
+    active_task_count: int

@@ -32,6 +32,70 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+it("shows the total active tasks across groups and preserves it when filtering cards", async () => {
+  vi.mocked(apiFetch).mockResolvedValue(Response.json([
+    { ...group, active_task_count: 2 },
+    { ...group, id: 8, name: "Algorytmy", active_task_count: 3 },
+  ]));
+  renderPage();
+  await screen.findByRole("heading", { name: group.name });
+  const metric = screen.getByRole("heading", { name: "Aktywne zadania" }).closest("article")!;
+  expect(within(metric).getByText("5")).toBeTruthy();
+  expect(within(metric).queryByText("Statystyki zadań wkrótce")).toBeNull();
+  fireEvent.change(screen.getByRole("searchbox", { name: "Szukaj grupy" }), { target: { value: "Algorytmy" } });
+  expect(within(metric).getByText("5")).toBeTruthy();
+});
+
+it.each([0, 4])("shows %s in the active tasks metric instead of a placeholder", async count => {
+  vi.mocked(apiFetch).mockResolvedValue(Response.json({ ...group, active_task_count: count }));
+  renderPage("/teacher/groups/7");
+  const heading = await screen.findByRole("heading", { name: "Aktywne zadania" });
+  expect(within(heading.closest("article")!).getByText(String(count))).toBeTruthy();
+  expect(within(heading.closest("article")!).queryByText("Statystyki zadań wkrótce")).toBeNull();
+  expect(screen.getByRole("button", { name: "Zadania" })).toBeTruthy();
+});
+
+it.each(["/teacher/groups", "/teacher/groups/7"])("assigns a task through the group button at %s", async path => {
+  vi.mocked(apiFetch).mockImplementation(async (url, options) => {
+    if (url.endsWith("/task-assignments")) return Response.json([]);
+    if (url.startsWith("/teacher/tasks?")) return Response.json({ items: [{ id: 15, title: "Pętle" }], total: 1, limit: 25, offset: 0 });
+    if (url === "/teacher/tasks/15/group-assignments") {
+      expect(JSON.parse(options!.body as string)).toEqual({ group_id: 7 });
+      return Response.json({ total_students: 12, assigned_count: 10, already_assigned_count: 2 });
+    }
+    return Response.json(url === "/teacher/groups" ? [{ ...group, student_count: 12 }] : { ...group, student_count: 12 });
+  });
+  renderPage(path);
+  fireEvent.click(await screen.findByRole("button", { name: "Przypisz zadanie" }));
+  const dialog = within(screen.getByRole("dialog", { name: "Przypisz zadanie grupie" }));
+  expect(dialog.getByText(/Liczba uczniów: 12/)).toBeTruthy();
+  await dialog.findByRole("radio", { name: "Pętle" });
+  const request = vi.mocked(apiFetch).mock.calls.find(([url]) => url.startsWith("/teacher/tasks?"))![0];
+  expect(new URL(request, "http://localhost").searchParams.get("status")).toBe("READY");
+  expect(new URL(request, "http://localhost").searchParams.get("archived")).toBe("false");
+  fireEvent.click(dialog.getByRole("radio", { name: "Pętle" }));
+  fireEvent.click(dialog.getByRole("button", { name: "Przypisz grupie" }));
+  expect(await dialog.findByText("Nowe przypisania: 10. Już przypisane: 2. Uczniów w grupie: 12.")).toBeTruthy();
+  fireEvent.click(dialog.getByRole("button", { name: "Zamknij" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  if (path.endsWith("/7")) {
+    expect(await screen.findByRole("region", { name: "Zadania przypisane grupie" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Zadania" }).getAttribute("aria-pressed")).toBe("true");
+  }
+});
+
+it("opens the assigned task list from the group tasks tab", async () => {
+  vi.mocked(apiFetch).mockImplementation(async url => Response.json(url.endsWith("/task-assignments")
+    ? [{ task_id: 15, title: "Warunki", topic: "Python", difficulty: "EASY", is_archived: false, student_count: 3, created_at: "2026-11-09T10:00:00Z" }]
+    : group));
+  renderPage("/teacher/groups/7");
+  fireEvent.click(await screen.findByRole("button", { name: "Zadania" }));
+  expect(await screen.findByRole("heading", { name: "Warunki" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Usuń przypisanie: Warunki" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Uczniowie" }));
+  expect(await screen.findByRole("table", { name: "Uczniowie grupy" })).toBeTruthy();
+});
+
 it("shows the group detail layout and omits the excluded analysis and motivation panels", async () => {
   renderPage("/teacher/groups/7");
   expect(await screen.findByRole("heading", { name: group.name, level: 1 })).toBeTruthy();
@@ -44,7 +108,7 @@ it("shows the group detail layout and omits the excluded analysis and motivation
   expect(screen.queryByText("Ustawienia motywacyjne")).toBeNull();
   expect(screen.queryByRole("button", { name: "Zaproś uczniów" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Więcej" })).toBeNull();
-  expect((screen.getByRole("button", { name: "Przypisz zadanie" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole("button", { name: "Przypisz zadanie" }) as HTMLButtonElement).disabled).toBe(false);
 });
 
 it("opens settings through group editing without a separate settings tab", async () => {
@@ -83,7 +147,7 @@ it("shows the actual member count and disabled future actions on each card", asy
   expect(within(list).getByText("Średni poziom ukończenia")).toBeTruthy();
   expect(within(list).getByText("Oczekujące zaproszenia")).toBeTruthy();
   expect((within(list).getByRole("button", { name: "Zaproś" }) as HTMLButtonElement).disabled).toBe(false);
-  expect((within(list).getByRole("button", { name: "Przypisz zadanie" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((within(list).getByRole("button", { name: "Przypisz zadanie" }) as HTMLButtonElement).disabled).toBe(false);
 });
 
 it("opens a group by clicking its name", async () => {
@@ -107,7 +171,7 @@ it("shows four metric tiles with real group count and unavailable future metrics
   const metrics = screen.getByRole("region", { name: "Statystyki grup" });
   expect(within(metrics).getAllByRole("article")).toHaveLength(4);
   expect(within(metrics).getByText("1")).toBeTruthy();
-  expect(within(metrics).getAllByText("—")).toHaveLength(2);
+  expect(within(metrics).getAllByText("—")).toHaveLength(1);
 });
 
 it("closes the modal with Escape without saving and restores page scroll", async () => {

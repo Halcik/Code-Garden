@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.security import create_access_token
+from app.models.task_assignment import TaskAssignment
 from app.models.task import Task, TaskDifficulty, TaskHint, TaskStatus, TaskTest, TaskType
 from app.models.user import AccountStatus, TeacherApproval, User, UserRole
 
@@ -36,6 +37,7 @@ def detail_data(client, db_engine):
             db.add(task)
             db.flush()
             ids[name] = task.id
+            db.add(TaskAssignment(task_id=task.id, student_id=ids["student"], assigned_by_teacher_id=ids[author]))
             if name == "ready":
                 db.add(TaskHint(task_id=task.id, position=1, title="Secret hint", content="Secret solution"))
                 db.add(TaskHint(task_id=task.id, position=4, title="Last hint", content="Last content"))

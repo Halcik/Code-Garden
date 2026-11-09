@@ -45,7 +45,7 @@ export default function StudentGroupsPage() {
   useEffect(() => {
     if (groupId) return;
     const controller = new AbortController();
-    listStudentTasks({ search: "", topic: "", difficulty: "", task_type: "", sort_by: "created_at", sort_order: "desc", offset: 0 }, controller.signal)
+    listStudentTasks({ search: "", topic: "", difficulty: "", task_type: "", sort_by: "created_at", sort_order: "desc", offset: 0, view: "catalog" }, controller.signal)
       .then(data => { if (!controller.signal.aborted) setCatalogCount(data.total); }).catch(() => { /* Membership remains usable if the catalog is unavailable. */ });
     return () => controller.abort();
   }, [groupId]);
@@ -90,7 +90,7 @@ export default function StudentGroupsPage() {
           <div className="student-group-heading"><span className="student-group-icon" aria-hidden="true" /><div><h2>{groupId ? group.name : <Link to={`/student/groups/${group.id}`}>{group.name}</Link>}</h2><p>Nauczyciel · {group.teacher_login}</p></div><span className="user-badge status-active">Aktywna</span></div>
           {groupId && <p className="group-description">{group.description || "Brak opisu."}</p>}
           <div className="student-group-progress"><div><span>Twój postęp w grupie</span><span title="Postępy będą dostępne po przypisaniu zadań">—</span></div><div className="student-group-track" aria-hidden="true" /></div>
-          <dl className="student-group-data"><div><dt>Członkowie</dt><dd>{group.student_count} uczniów</dd></div><div><dt>Najbliższy termin</dt><dd>—</dd></div><div><dt>Twoje aktywne zadania</dt><dd>—</dd></div></dl>
+          <dl className="student-group-data"><div><dt>Członkowie</dt><dd>{group.student_count} uczniów</dd></div><div><dt>Najbliższy termin</dt><dd>—</dd></div><div><dt>Twoje aktywne zadania</dt><dd>{group.active_task_count ?? 0}</dd></div></dl>
           <div className="student-group-card-actions"><button className="admin-button student-group-leave" disabled={pending} onClick={() => { setError(""); setLeaving(group); }}>Opuść grupę</button>
             {!groupId && <Link className="admin-button student-group-open" to={`/student/groups/${group.id}`} aria-label={`Otwórz grupę ${group.name}`}>Otwórz grupę</Link>}</div>
         </article>)}

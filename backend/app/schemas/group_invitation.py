@@ -61,4 +61,5 @@ class StudentGroupResponse(BaseModel):
     age_range: str | None
     teacher_login: str
     student_count: int
+    active_task_count: int
     created_at: datetime
