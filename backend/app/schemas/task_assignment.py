@@ -20,6 +20,7 @@ class AssignmentResponse(BaseModel):
     student_login: str
     assigned_by_teacher_id: int
     group_id: int | None
+    source_group_id: int | None
     group_name: str | None
     created_at: datetime
 

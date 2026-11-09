@@ -27,7 +27,7 @@ po dodaniu i usunięciu przypisania. Nie wymaga dodatkowej migracji.
 **Usuń przypisanie** po potwierdzeniu cofa indywidualne przypisania oznaczone
 źródłem tej grupy i utworzone przez zalogowanego nauczyciela. Nie usuwa zadania,
 szkiców ani wysłanych rozwiązań. Zachowuje przypisania bezpośrednie i pochodzące
-z innych grup. Uczeń bez pozostałego przypisania nie widzi zadania w zakładce
+z innych grup. Uczeń bez pozostałego przypisania nie widzi zadania w
 sekcji przypisanych zadań, ale nadal może ćwiczyć je z katalogu, o ile jest gotowe
 i niezarchiwizowane. Jego praca pozostaje w bazie.
 Zadania przypisane uczniom wyłącznie bezpośrednio lub przez inną grupę nie są
@@ -46,17 +46,36 @@ Zadania robocze i zarchiwizowane są niedostępne w obu widokach.
 ## Model i migracja
 
 `TaskAssignment` / `task_assignments` przechowuje `id`, `task_id`, `student_id`,
-`assigned_by_teacher_id`, opcjonalne `group_id` i `created_at`.
-Migracja **0015** dodaje klucze obce, indeksy ucznia, nauczyciela i grupy oraz
-`UNIQUE(task_id, student_id)`. Indeks unikalny obsługuje również wyszukiwanie po zadaniu.
+`assigned_by_teacher_id`, opcjonalne `group_id`, `source_group_id` i `created_at`.
+Każdy rekord jest niezależnym źródłem przypisania. `source_group_id = NULL`
+oznacza przypisanie bezpośrednie danego nauczyciela; liczba oznacza źródłową grupę.
+`group_id` pozostaje kluczem obcym do istniejącej grupy, a `source_group_id` zachowuje
+tożsamość źródła po jej usunięciu.
+
+Migracja **0016** zastępuje ograniczenie z 0015 przez
+`UNIQUE NULLS NOT DISTINCT(task_id, student_id, assigned_by_teacher_id, source_group_id)`.
+Ta sama grupa lub ten sam nauczyciel przypisujący bezpośrednio nie tworzy duplikatów.
+Inna grupa lub inny nauczyciel tworzy osobne źródło, również gdy uczeń już ma zadanie.
+PostgreSQL 17 obsługuje to ograniczenie także dla bezpośrednich źródeł z `NULL`.
+Lista ucznia używa `EXISTS`, więc zadanie i jego wskaźniki postępu liczą się raz,
+niezależnie od liczby źródeł. Usunięcie jednego źródła nie usuwa pozostałych.
+
+Migracja kopiuje istniejące `group_id` do `source_group_id` bez zmiany id i dat.
+Źródeł pominiętych dawniej przez `ON CONFLICT DO NOTHING`, ani tożsamości grup
+usuniętych przed migracją nie da się odtworzyć z obecnych danych. Takie pominięte
+przydzielenia należy wykonać ponownie; stare rekordy z `group_id = NULL` pozostają
+odwoływalne przez właściciela po id. Downgrade do 0015 odmawia działania, jeśli
+wymagałby utraty dodatkowych źródeł.
 
 Usunięcie zadania lub ucznia usuwa powiązane przypisania. Nauczyciel przypisujący
 jest chroniony przez `RESTRICT`. Usunięcie grupy ustawia `group_id` na `NULL`,
 zachowując indywidualne przypisania. Członkostwo nie jest warunkiem ich późniejszego
-istnienia; opuszczenie grupy nie cofa już przypisanego zadania.
+istnienia; opuszczenie grupy nie cofa już przypisanego zadania. W oknie przypisań
+przycisk **Cofnij** przy źródle pozwala właścicielowi cofnąć je również po usunięciu
+grupy lub archiwizacji zadania. Zapisane rozwiązania pozostają zachowane.
 
-Model ma własny identyfikator i datę utworzenia: w KAN-42 można dodać do niego
-status i terminy bez zmiany mechanizmu przypisywania. KAN-45 nie dodaje tych pól,
+Każde źródło ma własny identyfikator i datę utworzenia. Postęp per uczeń/zadanie
+pozostaje niezależny od źródeł; KAN-42 może rozbudować tę warstwę. KAN-45 nie dodaje pól,
 logiki deadline'ów ani nowego mechanizmu statusów.
 
 ## Dostępność i uprawnienia
@@ -88,8 +107,11 @@ po archiwizacji lub cofnięciu zadania do wersji roboczej.
 Własność grupy jest sprawdzana i jej rekord blokowany tak samo jak przy zmianach
 członkostwa w KAN-44. Operacja tworzy indywidualne przypisania dla aktualnych
 członków z rolą `STUDENT` w jednej transakcji. PostgreSQL `ON CONFLICT DO NOTHING`
-pomija duplikaty również przy równoczesnych żądaniach; nie zmienia autora,
+pomija tylko duplikaty tego samego źródła również przy równoczesnych żądaniach; nie zmienia autora,
 daty ani źródła istniejącego przypisania. Pusta grupa zwraca sukces z zerowymi licznikami.
+`assigned_count` liczy nowe źródła tej grupy, a `already_assigned_count` źródła
+już istniejące dla tej samej grupy. Przypisania bezpośrednie ani z innych grup
+nie są pomijane i nie blokują powstania nowego źródła.
 
 Nie jest zapisywana reguła przypisywania dla grupy: późniejsze zaakceptowanie
 zaproszenia lub dołączenie kodem nie tworzy historycznych przypisań.
@@ -102,6 +124,7 @@ Można ponownie wykonać przypisanie grupowe, aby objąć nowych członków.
 | GET | `/teacher/assignment-students?q=login` | Członkowie własnych grup, bez duplikatów |
 | GET | `/teacher/tasks/{task_id}/assignments` | Własna historia przypisań nauczyciela |
 | POST | `/teacher/tasks/{task_id}/assignments` | Payload `{ "student_id": 1 }`, sukces 201, duplikat 409 |
+| DELETE | `/teacher/tasks/{task_id}/assignments/{assignment_id}` | Cofnięcie własnego źródła, 204; cudze lub nieistniejące źródło 404; kontrola Origin |
 | POST | `/teacher/tasks/{task_id}/group-assignments` | Payload `{ "group_id": 1 }`, liczniki nowych i istniejących przypisań |
 | GET | `/teacher/groups/{group_id}/task-assignments` | Zadania przypisane przez tę grupę, z liczbą odbiorców i datą |
 | DELETE | `/teacher/groups/{group_id}/task-assignments/{task_id}` | Cofnięcie przypisań utworzonych przez tę grupę, 204 |
@@ -121,3 +144,7 @@ dołączenie, prywatność list i szczegółów, wszystkie operacje ucznia, RBAC
 Istniejące testy ucznia otrzymały jawne przypisania w danych testowych.
 `TaskAssignments.test.tsx` sprawdza wyszukiwanie członków, oba sposoby przypisania,
 komunikaty błędów, historię i anulowanie żądania po opuszczeniu ekranu.
+Testy obejmują A→B→remove A, niezależne źródła dwóch nauczycieli,
+grupa→usunięcie grupy→cofnięcie źródła, zachowanie bezpośredniego źródła,
+RBAC i Origin dla DELETE. `test_assignment_sources_migration.py` sprawdza migrację
+rekordów 0015, trwałość źródeł po usunięciu grup i ochronę przed stratnym downgrade.

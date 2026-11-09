@@ -4,6 +4,7 @@ import type { StudentIdentity } from "./groupInvitations";
 export type TaskAssignment = {
   id: number; task_id: number; student_id: number; student_login: string;
   assigned_by_teacher_id: number; group_id: number | null; group_name: string | null; created_at: string;
+  source_group_id?: number | null;
 };
 export type GroupAssignmentResult = { total_students: number; assigned_count: number; already_assigned_count: number };
 export class AssignmentsApiError extends Error {
@@ -16,6 +17,7 @@ const errors: Record<string, string> = {
   "Student does not belong to your groups": "Uczeń nie należy do żadnej Twojej grupy. Odśwież listę uczniów.",
   "Student already has this task assigned": "Uczeń ma już przypisane to zadanie.",
   "Group not found": "Nie znaleziono grupy lub nie masz do niej dostępu.",
+  "Assignment not found": "Nie znaleziono przypisania lub nie masz prawa go cofnąć.",
 };
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await apiFetch(path, { ...options, headers: { "Content-Type": "application/json" } });
@@ -35,6 +37,9 @@ export const assignTaskToStudent = (id: string, student_id: number, signal: Abor
   request<TaskAssignment>(`/teacher/tasks/${id}/assignments`, { method: "POST", body: JSON.stringify({ student_id }), signal });
 export const assignTaskToGroup = (id: string, group_id: number, signal: AbortSignal) =>
   request<GroupAssignmentResult>(`/teacher/tasks/${id}/group-assignments`, { method: "POST", body: JSON.stringify({ group_id }), signal });
+
+export const revokeTaskAssignment = (taskId: string, assignmentId: number, signal: AbortSignal) =>
+  request<void>(`/teacher/tasks/${taskId}/assignments/${assignmentId}`, { method: "DELETE", signal });
 
 export type GroupTaskAssignment = {
   task_id: number; title: string; topic: string; difficulty: "EASY" | "MEDIUM" | "HARD";

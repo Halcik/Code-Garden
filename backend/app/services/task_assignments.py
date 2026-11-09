@@ -34,7 +34,8 @@ def assignment_rows(db: Session, task_id: int, teacher_id: int):
     # A teacher sees only assignments they created, including after a student leaves.
     return db.execute(select(TaskAssignment.id, TaskAssignment.task_id, TaskAssignment.student_id,
         User.login.label("student_login"), TaskAssignment.assigned_by_teacher_id,
-        TaskAssignment.group_id, StudentGroup.name.label("group_name"), TaskAssignment.created_at)
+        TaskAssignment.group_id, TaskAssignment.source_group_id,
+        StudentGroup.name.label("group_name"), TaskAssignment.created_at)
         .join(User, User.id == TaskAssignment.student_id)
         .outerjoin(StudentGroup, StudentGroup.id == TaskAssignment.group_id)
         .where(TaskAssignment.task_id == task_id, TaskAssignment.assigned_by_teacher_id == teacher_id)
@@ -52,7 +53,7 @@ def assign_student(db: Session, task_id: int, student_id: int, teacher_id: int):
         raise HTTPException(403, "Student does not belong to your groups")
     assignment_id = db.scalar(insert(TaskAssignment).values(task_id=task_id, student_id=student_id,
         assigned_by_teacher_id=teacher_id).on_conflict_do_nothing(
-            constraint="uq_task_assignments_task_student").returning(TaskAssignment.id))
+            constraint="uq_task_assignments_source").returning(TaskAssignment.id))
     if assignment_id is None:
         raise HTTPException(409, "Student already has this task assigned")
     db.commit()
@@ -69,12 +70,22 @@ def assign_group(db: Session, task_id: int, group_id: int, teacher_id: int):
     assigned = 0
     if student_ids:
         assigned = len(list(db.scalars(insert(TaskAssignment).values([
-            dict(task_id=task_id, student_id=student_id, assigned_by_teacher_id=teacher_id, group_id=group_id)
+            dict(task_id=task_id, student_id=student_id, assigned_by_teacher_id=teacher_id,
+                 group_id=group_id, source_group_id=group_id)
             for student_id in student_ids]).on_conflict_do_nothing(
-                constraint="uq_task_assignments_task_student").returning(TaskAssignment.id))))
+                constraint="uq_task_assignments_source").returning(TaskAssignment.id))))
     db.commit()
     return dict(total_students=len(student_ids), assigned_count=assigned,
                 already_assigned_count=len(student_ids) - assigned)
+
+
+def revoke_assignment(db: Session, task_id: int, assignment_id: int, teacher_id: int):
+    removed = db.scalar(delete(TaskAssignment).where(TaskAssignment.id == assignment_id,
+        TaskAssignment.task_id == task_id, TaskAssignment.assigned_by_teacher_id == teacher_id)
+        .returning(TaskAssignment.id))
+    if removed is None:
+        raise HTTPException(404, "Assignment not found")
+    db.commit()
 
 
 def group_assignment_rows(db: Session, group_id: int, teacher_id: int):

@@ -21,6 +21,24 @@ beforeEach(() => {
   });
 });
 afterEach(cleanup);
+
+it.each([null, 42])("revokes an owned source including a deleted group source %s", async sourceGroupId => {
+  const original = vi.mocked(apiFetch).getMockImplementation()!;
+  vi.mocked(apiFetch).mockImplementation((path, options) => path.endsWith("/assignments") && options?.method !== "POST"
+    ? Promise.resolve(Response.json([{ ...assignment, source_group_id: sourceGroupId }])) : original(path, options));
+  await open(false);
+  const table = screen.getByRole("table", { name: "Uczniowie z przypisanym zadaniem" });
+  expect(within(table).getByText(sourceGroupId ? "Usunięta grupa #42" : "Bezpośrednio")).toBeTruthy();
+  fireEvent.click(within(table).getByRole("button", { name: "Cofnij przypisanie: uczen, źródło 1" }));
+  fireEvent.click(screen.getByRole("button", { name: "Anuluj cofnięcie" }));
+  expect(vi.mocked(apiFetch).mock.calls.some(([, options]) => options?.method === "DELETE")).toBe(false);
+  fireEvent.click(within(table).getByRole("button", { name: "Cofnij przypisanie: uczen, źródło 1" }));
+  vi.mocked(apiFetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+  fireEvent.click(screen.getByRole("button", { name: "Potwierdź cofnięcie" }));
+  expect(await screen.findByText("Cofnięto wybrane źródło przypisania. Pozostałe źródła i rozwiązania są zachowane.")).toBeTruthy();
+  expect(screen.queryByRole("table", { name: "Uczniowie z przypisanym zadaniem" })).toBeNull();
+  expect(vi.mocked(apiFetch).mock.calls.find(([, options]) => options?.method === "DELETE")?.[0]).toBe("/teacher/tasks/7/assignments/1");
+});
 async function open(available = true) {
   const result = render(<TaskAssignments taskId="7" available={available} />);
   fireEvent.click(screen.getByRole("button", { name: "Pokaż przypisania" }));

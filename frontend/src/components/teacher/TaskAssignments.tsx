@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { listGroups, GroupsApiError } from "../../api/groups";
 import type { Group } from "../../api/groups";
 import type { StudentIdentity } from "../../api/groupInvitations";
-import { assignTaskToGroup, assignTaskToStudent, AssignmentsApiError, listTaskAssignments, searchAssignmentStudents } from "../../api/taskAssignments";
+import { assignTaskToGroup, assignTaskToStudent, AssignmentsApiError, listTaskAssignments, revokeTaskAssignment, searchAssignmentStudents } from "../../api/taskAssignments";
 import type { TaskAssignment } from "../../api/taskAssignments";
 import { useAuth } from "../../auth/AuthProvider";
 import GroupDialog from "./GroupDialog";
@@ -24,6 +24,7 @@ export default function TaskAssignments({ taskId, available, onClose }: { taskId
   const [searchError, setSearchError] = useState("");
   const [success, setSuccess] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const [revoking, setRevoking] = useState<TaskAssignment | null>(null);
   const mutation = useRef<AbortController | null>(null);
   function message(reason: unknown) {
     if ((reason instanceof AssignmentsApiError || reason instanceof GroupsApiError) && reason.status === 401) retrySession();
@@ -70,6 +71,19 @@ export default function TaskAssignments({ taskId, available, onClose }: { taskId
     finally { if (!controller.signal.aborted) setBusy(false); controller.abort(); }
   }
   const selectedGroup = groups.find(group => group.id === Number(groupId));
+  async function revoke() {
+    if (!revoking || mutation.current && !mutation.current.signal.aborted) return;
+    const controller = new AbortController(); mutation.current = controller;
+    setBusy(true); setError(""); setSuccess("");
+    try {
+      await revokeTaskAssignment(taskId, revoking.id, controller.signal);
+      if (!controller.signal.aborted) {
+        setAssignments(previous => previous.filter(row => row.id !== revoking.id));
+        setRevoking(null); setSuccess("Cofnięto wybrane źródło przypisania. Pozostałe źródła i rozwiązania są zachowane.");
+      }
+    } catch (reason) { if (!controller.signal.aborted) setError(message(reason)); }
+    finally { if (!controller.signal.aborted) setBusy(false); controller.abort(); }
+  }
   const content = <>
     <div className="group-form-heading"><h2 id="task-assignments-heading">{onClose ? "Przypisz zadanie" : "Przypisania zadania"}</h2>
       {onClose && <button type="button" className="group-close" aria-label="Zamknij przypisywanie" disabled={busy} onClick={onClose} />}</div>
@@ -98,20 +112,26 @@ export default function TaskAssignments({ taskId, available, onClose }: { taskId
         <label>Grupa<select value={groupId} onChange={event => setGroupId(event.target.value)}>
           <option value="">Wybierz grupę</option>{groups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
         </select></label>
-        {selectedGroup && <p>Liczba uczniów: {selectedGroup.student_count}. Osoby, które już mają zadanie, zostaną pominięte.</p>}
+        {selectedGroup && <p>Liczba uczniów: {selectedGroup.student_count}. Powtórne przypisania z tej samej grupy zostaną pominięte.</p>}
         <p>Przypisanie obejmie aktualnych członków grupy. Osoby dołączające później nie otrzymają go automatycznie.</p>
         <button type="button" className="admin-button" disabled={!groupId} onClick={() => assign("group")}>Przypisz grupie</button>
       </fieldset>
-      {!loading && <><h3>Uczniowie z Twoimi przypisaniami <span className="muted">({assignments.length})</span></h3>{assignments.length ?
+      {!loading && <><h3>Uczniowie z Twoimi przypisaniami <span className="muted">({new Set(assignments.map(row => row.student_id)).size})</span></h3>{assignments.length ?
         <div className="task-assignment-table-scroll" tabIndex={0} role="region" aria-label="Lista przypisań uczniów">
           <table className="task-assignment-table"><caption className="sr-only">Uczniowie z przypisanym zadaniem</caption>
-            <thead><tr><th scope="col">Uczeń</th><th scope="col">Źródło przypisania</th><th scope="col">Data</th></tr></thead>
+            <thead><tr><th scope="col">Uczeń</th><th scope="col">Źródło przypisania</th><th scope="col">Data</th><th scope="col">Akcje</th></tr></thead>
             <tbody>{assignments.map(row => <tr key={row.id}><td className="task-assignment-login">{row.student_login}</td>
-              <td>{row.group_name || "Bezpośrednio lub usunięta grupa"}</td>
+              <td>{row.group_name || (row.source_group_id ? `Usunięta grupa #${row.source_group_id}` : "Bezpośrednio")}</td>
               <td><time dateTime={row.created_at}>{new Date(row.created_at).toLocaleDateString("pl-PL")}</time></td>
+              <td><button type="button" className="admin-text-button" disabled={busy} onClick={() => setRevoking(row)} aria-label={`Cofnij przypisanie: ${row.student_login}, źródło ${row.id}`}>Cofnij</button></td>
             </tr>)}</tbody>
           </table>
         </div> : <p>Nie przypisano jeszcze zadania.</p>}</>}
+      {revoking && <div className="group-form-note" role="group" aria-label="Potwierdź cofnięcie przypisania">
+        <p>Cofnąć to źródło przypisania dla ucznia {revoking.student_login}? Pozostałe źródła oraz rozwiązania pozostaną zachowane.</p>
+        <div className="group-actions"><button type="button" className="admin-button" disabled={busy} onClick={() => setRevoking(null)}>Anuluj cofnięcie</button>
+          <button type="button" className="admin-button primary" disabled={busy} onClick={revoke}>Potwierdź cofnięcie</button></div>
+      </div>}
     </>}
     {onClose && <div className="group-actions"><button type="button" className="admin-button" disabled={busy} onClick={onClose}>Zamknij</button></div>}
   </>;

@@ -112,15 +112,15 @@ def test_group_snapshot_skips_duplicates_and_preserves_original_assignment(clien
     direct = assign(client, data).json()
     response = assign_group(client, data)
     assert response.status_code == 200
-    assert response.json() == {"total_students": 2, "assigned_count": 1, "already_assigned_count": 1}
+    assert response.json() == {"total_students": 2, "assigned_count": 2, "already_assigned_count": 0}
     rows = client.get(f"/teacher/tasks/{data['task']}/assignments").json()
-    assert len(rows) == 2
-    assert next(row for row in rows if row["student_id"] == data["student"]) == direct
+    assert len(rows) == 3
+    assert next(row for row in rows if row["id"] == direct["id"]) == direct
     group_row = next(row for row in rows if row["student_id"] == data["second"])
     assert group_row["group_id"] == data["group"] and group_row["group_name"]
     assert group_row["assigned_by_teacher_id"] == data["teacher"]
     assert assign_group(client, data).json()["assigned_count"] == 0
-    assert assign_group(client, data, "overlap").json()["assigned_count"] == 0
+    assert assign_group(client, data, "overlap").json()["assigned_count"] == 1
     with Session(db_engine) as db:
         group = db.get(StudentGroup, data["group"])
         group.students.append(db.get(User, data["outsider"]))
@@ -132,7 +132,7 @@ def test_group_snapshot_skips_duplicates_and_preserves_original_assignment(clien
     # Deleting a group leaves individual assignments intact.
     login(client, data["teacher"])
     assert client.delete(f"/teacher/groups/{data['group']}").status_code == 204
-    assert len(client.get(f"/teacher/tasks/{data['task']}/assignments").json()) == 2
+    assert len(client.get(f"/teacher/tasks/{data['task']}/assignments").json()) == 4
 
 
 def test_group_ownership_and_empty_group(client, data):
@@ -218,13 +218,13 @@ def test_concurrent_assignments_create_one_row(client, data, db_engine):
 def test_group_list_and_removal_preserve_other_sources_and_student_work(client, data, db_engine):
     from app.models.solution import SolutionDraft, Submission
     direct = assign(client, data).json()
-    assert assign_group(client, data).json()["assigned_count"] == 1
+    assert assign_group(client, data).json()["assigned_count"] == 2
     path = f"/teacher/groups/{data['group']}/task-assignments"
     response = client.get(path)
     assert response.status_code == 200 and response.headers["cache-control"] == "no-store"
     rows = response.json()
     assert len(rows) == 1
-    assert rows[0]["task_id"] == data["task"] and rows[0]["student_count"] == 1
+    assert rows[0]["task_id"] == data["task"] and rows[0]["student_count"] == 2
     assert rows[0]["title"] == "task" and rows[0]["created_at"]
     # Source remains authoritative after a recipient leaves and the task is archived.
     with Session(db_engine) as db:
@@ -256,7 +256,7 @@ def test_group_list_and_removal_preserve_other_sources_and_student_work(client, 
 
 def test_group_removal_does_not_touch_assignments_from_another_group(client, data, db_engine):
     assert assign_group(client, data, "overlap").json()["assigned_count"] == 1
-    assert assign_group(client, data).json()["assigned_count"] == 1
+    assert assign_group(client, data).json()["assigned_count"] == 2
     assert client.delete(f"/teacher/groups/{data['group']}/task-assignments/{data['task']}").status_code == 204
     rows = client.get(f"/teacher/groups/{data['overlap']}/task-assignments").json()
     assert len(rows) == 1 and rows[0]["student_count"] == 1
@@ -318,12 +318,12 @@ def test_teacher_assigned_task_filter_counts_tasks_not_students(client, data):
 
 
 def test_student_group_active_task_count_is_personal_and_excludes_archived_tasks(client, data, db_engine):
-    # An existing direct assignment is not attributed to this group.
+    # A direct source and a group source are independent, even for the same task.
     assert assign(client, data).status_code == 201
-    assert assign_group(client, data).json()["assigned_count"] == 1
+    assert assign_group(client, data).json()["assigned_count"] == 2
     assert client.post(f"/teacher/tasks/{data['other_task']}/group-assignments",
                        json={"group_id": data["group"]}).status_code == 200
-    for actor, expected in [("student", 1), ("second", 2)]:
+    for actor, expected in [("student", 2), ("second", 2)]:
         login(client, data[actor])
         row = next(row for row in client.get("/student/groups").json() if row["id"] == data["group"])
         assert row["active_task_count"] == expected
@@ -332,10 +332,109 @@ def test_student_group_active_task_count_is_personal_and_excludes_archived_tasks
         db.get(Task, data["other_task"]).is_archived = True
         db.commit()
     login(client, data["student"])
-    assert client.get(f"/student/groups/{data['group']}").json()["active_task_count"] == 0
+    assert client.get(f"/student/groups/{data['group']}").json()["active_task_count"] == 1
     login(client, data["second"])
     assert client.get(f"/student/groups/{data['group']}").json()["active_task_count"] == 1
     login(client, data["teacher"])
     assert client.delete(f"/teacher/groups/{data['group']}/task-assignments/{data['task']}").status_code == 204
     login(client, data["second"])
     assert client.get(f"/student/groups/{data['group']}").json()["active_task_count"] == 0
+
+
+def test_two_groups_preserve_independent_sources_and_student_list_is_deduplicated(client, data):
+    assert assign_group(client, data).json()["assigned_count"] == 2
+    assert assign_group(client, data, "overlap").json()["assigned_count"] == 1
+    assert assign_group(client, data, "overlap").json()["assigned_count"] == 0
+    login(client, data["student"])
+    page = client.get("/student/tasks?view=assigned").json()
+    assert page["total"] == 1 and [row["id"] for row in page["items"]] == [data["task"]]
+    assert page["progress_counts"]["NOT_STARTED"] == 1
+    login(client, data["teacher"])
+    assert client.delete(f"/teacher/groups/{data['group']}/task-assignments/{data['task']}").status_code == 204
+    login(client, data["student"])
+    assert client.get("/student/tasks?view=assigned").json()["total"] == 1
+    login(client, data["teacher"])
+    assert client.delete(f"/teacher/groups/{data['overlap']}/task-assignments/{data['task']}").status_code == 204
+    login(client, data["student"])
+    assert client.get("/student/tasks?view=assigned").json()["total"] == 0
+
+
+def test_two_teachers_can_assign_and_revoke_only_their_own_sources(client, data, db_engine):
+    with Session(db_engine) as db:
+        foreign_group = db.get(StudentGroup, data["foreign_group"])
+        foreign_group.students.append(db.get(User, data["student"]))
+        db.commit()
+    first = assign(client, data).json()
+    login(client, data["other_teacher"])
+    second = assign(client, data)
+    assert second.status_code == 201 and second.json()["id"] != first["id"]
+    second_id = second.json()["id"]
+    url = f"/teacher/tasks/{data['task']}/assignments/{first['id']}"
+    assert client.delete(url).status_code == 404
+    login(client, data["teacher"])
+    assert client.delete(f"/teacher/tasks/{data['other_task']}/assignments/{first['id']}").status_code == 404
+    assert client.delete(url, headers={"Origin": "https://untrusted.example"}).status_code == 403
+    assert client.delete(url).status_code == 204
+    login(client, data["student"])
+    assert client.get("/student/tasks?view=assigned").json()["total"] == 1
+    login(client, data["other_teacher"])
+    assert client.delete(f"/teacher/tasks/{data['task']}/assignments/{second_id}").status_code == 204
+    login(client, data["student"])
+    assert client.get("/student/tasks?view=assigned").json()["total"] == 0
+
+
+def test_deleted_group_source_can_be_revoked_without_affecting_direct_source(client, data):
+    direct = assign(client, data).json()
+    assert assign_group(client, data).json()["assigned_count"] == 2
+    assert client.delete(f"/teacher/groups/{data['group']}").status_code == 204
+    # History and revoke remain available for archived tasks too.
+    assert client.patch(f"/teacher/tasks/{data['task']}/archive").status_code == 200
+    rows = client.get(f"/teacher/tasks/{data['task']}/assignments").json()
+    orphan = next(row for row in rows if row["student_id"] == data["student"] and row["source_group_id"] == data["group"])
+    assert orphan["group_id"] is None
+    path = f"/teacher/tasks/{data['task']}/assignments/{orphan['id']}"
+    login(client, data["other_teacher"])
+    assert client.delete(path).status_code == 404
+    login(client, data["teacher"])
+    assert client.delete(path).status_code == 204
+    remaining = client.get(f"/teacher/tasks/{data['task']}/assignments").json()
+    assert any(row["id"] == direct["id"] for row in remaining)
+    assert not any(row["id"] == orphan["id"] for row in remaining)
+
+
+@pytest.mark.parametrize("actor,expected", [(None, 401), ("student", 403), ("admin", 403), ("pending", 403), ("inactive", 403)])
+def test_revoke_assignment_rbac(client, data, actor, expected):
+    row = assign(client, data).json()
+    login(client, data[actor] if actor else None)
+    assert client.delete(f"/teacher/tasks/{data['task']}/assignments/{row['id']}").status_code == expected
+
+
+def test_concurrent_group_sources_are_deduplicated_per_source_not_per_student(client, data, db_engine):
+    def send(group):
+        with TestClient(app) as concurrent:
+            login(concurrent, data["teacher"])
+            response = assign_group(concurrent, data, group)
+            assert response.status_code == 200
+            return response.json()["assigned_count"]
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sorted(pool.map(send, ["group", "overlap"])) == [1, 2]
+        assert list(pool.map(send, ["group", "group"])) == [0, 0]
+    with Session(db_engine) as db:
+        assert db.scalar(select(func.count()).select_from(TaskAssignment).where(
+            TaskAssignment.task_id == data["task"], TaskAssignment.student_id == data["student"])) == 2
+
+
+def test_non_author_can_revoke_archived_source_after_group_deletion(client, data):
+    # The second teacher is assigning an available catalogue task they did not author.
+    login(client, data["other_teacher"])
+    assert client.post(f"/teacher/tasks/{data['task']}/group-assignments",
+                       json={"group_id": data["foreign_group"]}).status_code == 200
+    assert client.delete(f"/teacher/groups/{data['foreign_group']}").status_code == 204
+    login(client, data["teacher"])
+    assert client.patch(f"/teacher/tasks/{data['task']}/archive").status_code == 200
+    login(client, data["other_teacher"])
+    response = client.get(f"/teacher/tasks/{data['task']}/assignments")
+    assert response.status_code == 200
+    row = response.json()[0]
+    assert row["group_id"] is None and row["source_group_id"] == data["foreign_group"]
+    assert client.delete(f"/teacher/tasks/{data['task']}/assignments/{row['id']}").status_code == 204
