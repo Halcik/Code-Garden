@@ -13,7 +13,21 @@ if (!existsSync(vite)) {
 }
 
 const children = [];
+const containerProjects = [];
 let stopping = false;
+// Also clean up when a preparation script exits after a failed command.
+process.on("exit", () => {
+  for (const cwd of [...containerProjects].reverse()) {
+    console.log(`Zatrzymywanie kontenerow: ${path.relative(backend, cwd) || "PostgreSQL"}...`);
+    const result = spawnSync("docker", ["compose", "stop"], {
+      cwd, stdio: "inherit", windowsHide: true,
+    });
+    if (result.error || result.status !== 0) {
+      console.error(`Nie udalo sie zatrzymac kontenerow w ${cwd}: ${result.error?.message || "docker compose stop zakonczyl sie bledem"}`);
+      process.exitCode = 1;
+    }
+  }
+});
 function stop(code) {
   if (stopping) return;
   stopping = true;
@@ -49,10 +63,12 @@ function start(command, args, cwd) {
 
 async function main() {
   await checkDevPorts();
+  containerProjects.push(backend);
   prepareBackend();
+  containerProjects.push(path.join(backend, "judge0"));
   prepareJudge0();
   console.log("Frontend: http://localhost:5173 | Backend: http://localhost:8000");
-  console.log("Ctrl+C zatrzymuje oba serwery. Baza i Judge0 pozostaja uruchomione.");
+  console.log("Ctrl+C zatrzymuje oba serwery oraz kontenery bazy i Judge0.");
   start(python, backendArgs, backend);
   start(process.execPath, [vite, "--host", "localhost", "--port", "5173", "--strictPort"], frontend);
 }

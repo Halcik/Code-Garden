@@ -102,8 +102,8 @@ npm run dev
 `npm run dev` uruchamia bazę, stosuje migracje, przygotowuje obraz i kontenery Judge0,
 a następnie uruchamia frontend oraz backend
 w jednym terminalu. Otwórz `http://localhost:5173`; API działa na `http://localhost:8000`.
-`Ctrl+C` zatrzymuje oba serwery, a baza i Judge0 pozostają uruchomione w Dockerze.
-Jeśli jeden serwer zakończy działanie, drugi również zostanie zatrzymany.
+`Ctrl+C` zatrzymuje oba serwery oraz kontenery bazy i Judge0. Dane w bazach są zachowane.
+Jeśli jeden serwer zakończy działanie, drugi oraz kontenery również zostaną zatrzymane.
 
 Możesz też uruchamiać serwery osobno: `npm run dev:frontend` i `npm run dev:backend`.
 Sam Judge0 uruchomisz przez `npm run dev:judge0`. Docker Desktop musi być włączony.
