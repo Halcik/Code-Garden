@@ -85,9 +85,13 @@ jest ograniczona do własnych zadań, ale dotychczasowy katalog ucznia obejmowa�
 wszystkie zadania `READY`, które nie były zarchiwizowane.
 
 `assignable_task_filters(teacher_id)` w `app/services/task_assignments.py`
-wydziela dostępność do przypisywania zgodnie z tą regułą katalogu. Nie wymaga
-autorstwa: również gotowe zadanie innego autora może zostać przypisane przez API.
-W przyszłości regułę własne/publiczne należy rozszerzyć w tej funkcji.
+pozwala przypisywać wyłącznie własne, gotowe i niezarchiwizowane zadania nauczyciela.
+Reguła obowiązuje przy przypisywaniu pojedynczemu uczniowi i całej grupie.
+Samo `READY` nie nadaje nauczycielom prawa przypisywania cudzego zadania.
+Do czasu wdrożenia systemu publikacji/katalogu ograniczamy przypisywanie do
+własnych zadań nauczyciela. W przyszłości regułę własne/publiczne należy rozszerzyć
+w tej funkcji razem z ustaleniem, kto ocenia rozwiązania zadań publicznych.
+Katalog ucznia nadal obejmuje wszystkie gotowe, niezarchiwizowane zadania.
 Nie dodano mechanizmu publikacji ani nowego katalogu nauczyciela; obecny panel
 przypisań znajduje się w istniejącym ekranie szczegółów własnego zadania.
 
@@ -101,6 +105,10 @@ uczniów należących do kilku grup. Wyszukiwanie zwraca do 100 pasujących czł
 Historia w panelu obejmuje tylko przypisania utworzone przez zalogowanego nauczyciela,
 również po opuszczeniu grupy przez ucznia. Autor może odczytać tę historię także
 po archiwizacji lub cofnięciu zadania do wersji roboczej.
+Istniejące źródła utworzone przed ograniczeniem do autora nie są usuwane:
+przypisujący nauczyciel nadal może odczytać i cofnąć własne źródło, także dla
+cudzego zadania po usunięciu grupy. Nie daje mu to prawa do nowych przypisań
+ani do recenzowania cudzych zadań.
 
 ## Przypisanie grupowe
 

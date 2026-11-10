@@ -47,6 +47,7 @@ def data(client, db_engine):
             db.add(group); db.flush(); ids[name] = group.id
         for name, author, status, archived in [("task", "teacher", TaskStatus.READY, False),
                 ("other_task", "other_teacher", TaskStatus.READY, False),
+                ("second_task", "teacher", TaskStatus.READY, False),
                 ("draft", "teacher", TaskStatus.DRAFT, False),
                 ("archived", "teacher", TaskStatus.READY, True)]:
             task = Task(title=name, topic=suffix, instructions="Solve", author_id=ids[author],
@@ -104,8 +105,19 @@ def test_unavailable_task(client, data, task):
     assert client.post(f"/teacher/tasks/{data[task]}/group-assignments", json={"group_id": data["group"]}).status_code == 404
 
 
-def test_existing_ready_catalogue_allows_another_author_without_publication_flag(client, data):
-    assert assign(client, data, task="other_task").status_code == 201
+def test_only_task_author_can_assign_ready_tasks_to_students_or_groups(client, data, db_engine):
+    assert assign(client, data).status_code == 201
+    assert assign(client, data, task="other_task").status_code == 404
+    assert client.post(f"/teacher/tasks/{data['other_task']}/group-assignments",
+                       json={"group_id": data["group"]}).status_code == 404
+    with Session(db_engine) as db:
+        assert db.scalar(select(func.count()).select_from(TaskAssignment).where(
+            TaskAssignment.task_id == data["other_task"])) == 0
+    login(client, data["other_teacher"])
+    assert assign(client, data, student="foreign", task="other_task").status_code == 201
+    assert assign(client, data, student="foreign").status_code == 404
+    assert client.post(f"/teacher/tasks/{data['task']}/group-assignments",
+                       json={"group_id": data["foreign_group"]}).status_code == 404
 
 
 def test_group_snapshot_skips_duplicates_and_preserves_original_assignment(client, data, db_engine):
@@ -144,12 +156,12 @@ def test_group_ownership_and_empty_group(client, data):
 def test_teacher_assignment_history_is_private(client, data):
     assert assign(client, data).status_code == 201
     login(client, data["other_teacher"])
-    assert client.get(f"/teacher/tasks/{data['task']}/assignments").json() == []
+    assert client.get(f"/teacher/tasks/{data['task']}/assignments").status_code == 404
 
 
 def test_student_only_sees_own_assigned_tasks(client, data):
     assert assign(client, data).status_code == 201
-    assert assign(client, data, "second", "other_task").status_code == 201
+    assert assign(client, data, "second", "second_task").status_code == 201
     login(client, data["student"])
     page = client.get("/student/tasks").json()
     assert [item["id"] for item in page["items"]] == [data["task"]]
@@ -165,7 +177,7 @@ def test_catalogue_includes_unassigned_ready_tasks_and_keeps_practice_private(cl
     with Session(db_engine) as db:
         topic = db.get(Task, data["task"]).topic
     page = client.get("/student/tasks", params={"view": "catalog", "topic": topic}).json()
-    assert {item["id"] for item in page["items"]} == {data["task"], data["other_task"]}
+    assert {item["id"] for item in page["items"]} == {data["task"], data["other_task"], data["second_task"]}
     assert client.get(f"/student/tasks/{data['task']}").status_code == 200
     assert client.put(f"/student/tasks/{data['task']}/draft", json={"source_code": "my catalogue solution"}).status_code == 200
     login(client, data["student"])
@@ -289,11 +301,11 @@ def test_active_task_count_counts_tasks_not_recipients_and_updates_on_removal(cl
     assert client.get(path).json()["active_task_count"] == 1
     assert assign_group(client, data).json()["assigned_count"] == 0
     assert client.get(path).json()["active_task_count"] == 1
-    assert client.post(f"/teacher/tasks/{data['other_task']}/group-assignments",
+    assert client.post(f"/teacher/tasks/{data['second_task']}/group-assignments",
                        json={"group_id": data["group"]}).status_code == 200
     assert client.get(path).json()["active_task_count"] == 2
     with Session(db_engine) as db:
-        db.get(Task, data["other_task"]).is_archived = True
+        db.get(Task, data["second_task"]).is_archived = True
         db.commit()
     assert client.get(path).json()["active_task_count"] == 1
     listed = next(row for row in client.get("/teacher/groups").json() if row["id"] == data["group"])
@@ -321,7 +333,7 @@ def test_student_group_active_task_count_is_personal_and_excludes_archived_tasks
     # A direct source and a group source are independent, even for the same task.
     assert assign(client, data).status_code == 201
     assert assign_group(client, data).json()["assigned_count"] == 2
-    assert client.post(f"/teacher/tasks/{data['other_task']}/group-assignments",
+    assert client.post(f"/teacher/tasks/{data['second_task']}/group-assignments",
                        json={"group_id": data["group"]}).status_code == 200
     for actor, expected in [("student", 2), ("second", 2)]:
         login(client, data[actor])
@@ -329,7 +341,7 @@ def test_student_group_active_task_count_is_personal_and_excludes_archived_tasks
         assert row["active_task_count"] == expected
         assert client.get(f"/student/groups/{data['group']}").json()["active_task_count"] == expected
     with Session(db_engine) as db:
-        db.get(Task, data["other_task"]).is_archived = True
+        db.get(Task, data["second_task"]).is_archived = True
         db.commit()
     login(client, data["student"])
     assert client.get(f"/student/groups/{data['group']}").json()["active_task_count"] == 1
@@ -359,16 +371,15 @@ def test_two_groups_preserve_independent_sources_and_student_list_is_deduplicate
     assert client.get("/student/tasks?view=assigned").json()["total"] == 0
 
 
-def test_two_teachers_can_assign_and_revoke_only_their_own_sources(client, data, db_engine):
-    with Session(db_engine) as db:
-        foreign_group = db.get(StudentGroup, data["foreign_group"])
-        foreign_group.students.append(db.get(User, data["student"]))
-        db.commit()
+def test_legacy_sources_from_two_teachers_remain_independently_revocable(client, data, db_engine):
     first = assign(client, data).json()
+    # Existing sources created before the author-only policy must stay revocable.
+    with Session(db_engine) as db:
+        legacy = TaskAssignment(task_id=data["task"], student_id=data["student"],
+                                assigned_by_teacher_id=data["other_teacher"])
+        db.add(legacy); db.commit(); second_id = legacy.id
     login(client, data["other_teacher"])
-    second = assign(client, data)
-    assert second.status_code == 201 and second.json()["id"] != first["id"]
-    second_id = second.json()["id"]
+    assert assign(client, data).status_code == 404
     url = f"/teacher/tasks/{data['task']}/assignments/{first['id']}"
     assert client.delete(url).status_code == 404
     login(client, data["teacher"])
@@ -424,11 +435,14 @@ def test_concurrent_group_sources_are_deduplicated_per_source_not_per_student(cl
             TaskAssignment.task_id == data["task"], TaskAssignment.student_id == data["student"])) == 2
 
 
-def test_non_author_can_revoke_archived_source_after_group_deletion(client, data):
-    # The second teacher is assigning an available catalogue task they did not author.
+def test_non_author_can_revoke_legacy_archived_source_after_group_deletion(client, data, db_engine):
+    # Seed a source permitted by the previous policy, without granting new access.
+    with Session(db_engine) as db:
+        db.add(TaskAssignment(task_id=data["task"], student_id=data["foreign"],
+            assigned_by_teacher_id=data["other_teacher"], group_id=data["foreign_group"],
+            source_group_id=data["foreign_group"]))
+        db.commit()
     login(client, data["other_teacher"])
-    assert client.post(f"/teacher/tasks/{data['task']}/group-assignments",
-                       json={"group_id": data["foreign_group"]}).status_code == 200
     assert client.delete(f"/teacher/groups/{data['foreign_group']}").status_code == 204
     login(client, data["teacher"])
     assert client.patch(f"/teacher/tasks/{data['task']}/archive").status_code == 200

@@ -11,9 +11,9 @@ from app.services.groups import owned_group
 
 
 def assignable_task_filters(teacher_id: int):
-    # There is no publication flag yet. Match the existing ready-task catalogue.
-    # Future own/public visibility belongs here, independently of assignments.
-    return [Task.status == TaskStatus.READY, Task.is_archived.is_(False)]
+    # Until teacher publication/catalogue access is implemented, only authors
+    # may assign tasks. Future own/public visibility belongs in this policy.
+    return [Task.author_id == teacher_id, Task.status == TaskStatus.READY, Task.is_archived.is_(False)]
 
 
 def available_assignment_task(db: Session, task_id: int, teacher_id: int):
