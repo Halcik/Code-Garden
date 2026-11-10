@@ -38,6 +38,73 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
+it("opens assignments from the new column between update and usage", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => path === "/teacher/groups" || path.endsWith("/assignments") || path.startsWith("/teacher/assignment-students")
+    ? Response.json([]) : response(path, 1, [{ ...task, status: "READY" }]));
+  renderPage();
+  const table = await screen.findByRole("table");
+  const headings = within(table).getAllByRole("columnheader").map(heading => heading.textContent);
+  expect(headings.slice(4, 7)).toEqual(["Aktualizacja", "Przypisz", "Użycie"]);
+  const button = screen.getByRole("button", { name: `Przypisz zadanie: ${task.title}` });
+  expect(button.className).toContain("teacher-open-link");
+  fireEvent.click(button);
+  expect(await screen.findByRole("dialog", { name: "Przypisz zadanie" })).toBeTruthy();
+  expect(vi.mocked(apiFetch).mock.calls.some(([path]) => path === "/teacher/tasks/7/assignments")).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Zamknij przypisywanie" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+it.each([["DRAFT", false], ["READY", true]])("disables assigning a %s task archived=%s", async (status, archived) => {
+  vi.mocked(apiFetch).mockImplementation(async path => response(path, 1, [{ ...task, status: status as Task["status"], is_archived: archived }]));
+  renderPage(); await screen.findByRole("table");
+  expect((screen.getByRole("button", { name: `Przypisz zadanie: ${task.title}` }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it("filters assigned tasks, resets pagination and clears the filter through other tabs", async () => {
+  renderPage();
+  await screen.findByRole("table");
+  fireEvent.change(screen.getByLabelText("Poziom trudności"), { target: { value: "EASY" } });
+  await screen.findByRole("table");
+  fireEvent.click(screen.getByRole("button", { name: "Następna" }));
+  await screen.findByRole("table");
+  const assigned = screen.getByRole("button", { name: "Przypisane" });
+  expect((assigned as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(assigned);
+  await screen.findByRole("table");
+  expect(Object.fromEntries(listRequests().at(-1)!)).toMatchObject({ assigned: "true", offset: "0", difficulty: "EASY" });
+  expect(assigned.getAttribute("aria-pressed")).toBe("true");
+  expect(screen.getByRole("button", { name: "Wszystkie" }).getAttribute("aria-pressed")).toBe("false");
+  fireEvent.click(screen.getByRole("button", { name: "Wszystkie" }));
+  await screen.findByRole("table");
+  expect(listRequests().at(-1)?.has("assigned")).toBe(false);
+  fireEvent.click(assigned);
+  await screen.findByRole("table");
+  fireEvent.click(screen.getByRole("button", { name: "Zarchiwizowane" }));
+  await screen.findByRole("table");
+  expect(listRequests().at(-1)?.has("assigned")).toBe(false);
+  expect(listRequests().at(-1)?.get("archived")).toBe("true");
+});
+
+it("shows a filtered empty state when no tasks have assignments", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => response(path, params(path).get("assigned") === "true" ? 0 : 1,
+    params(path).get("assigned") === "true" ? [] : [task]));
+  renderPage(); await screen.findByRole("table");
+  fireEvent.click(screen.getByRole("button", { name: "Przypisane" }));
+  expect(await screen.findByText("Brak pasujących zadań")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Wyczyść filtry" }));
+  expect(await screen.findByRole("table")).toBeTruthy();
+  expect(listRequests().at(-1)?.has("assigned")).toBe(false);
+});
+
+it("shows the actual number of assigned tasks instead of a placeholder", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => response(path, params(path).get("assigned") === "true" ? 3 : 51));
+  renderPage();
+  const metric = screen.getByRole("heading", { name: "Przypisane" }).closest("article")!;
+  expect(await within(metric).findByText("3")).toBeTruthy();
+  expect(within(metric).getByText("Zadania przypisane uczniom")).toBeTruthy();
+  expect(within(metric).queryByText(/Placeholder/)).toBeNull();
+});
+
 it("shows loading until the list arrives", async () => {
   let resolve!: (value: Response) => void;
   vi.mocked(apiFetch).mockImplementation(path => params(path).get("limit") === "1"
@@ -54,7 +121,7 @@ it("shows the empty state for a teacher without tasks and zero counters", async 
   expect(await screen.findByText("Nie masz jeszcze żadnych zadań")).toBeTruthy();
   expect(screen.queryByRole("table")).toBeNull();
   expect(screen.getByRole("link", { name: "Utwórz zadanie" })).toBeTruthy();
-  await waitFor(() => expect(screen.getAllByText("0")).toHaveLength(2));
+  await waitFor(() => expect(screen.getAllByText("0")).toHaveLength(3));
 });
 
 it("distinguishes no matching results and lets the teacher clear filters", async () => {
@@ -156,7 +223,7 @@ it.each([
 it("keeps total and draft counters unchanged when filtering the list", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => {
     const query = params(path);
-    return response(path, query.get("limit") === "1" ? query.get("status") === "DRAFT" ? 8 : 51 : 1);
+    return response(path, query.get("assigned") === "true" ? 3 : query.get("limit") === "1" ? query.get("status") === "DRAFT" ? 8 : 51 : 1);
   });
   renderPage();
   await screen.findByRole("table");
@@ -169,7 +236,7 @@ it("keeps total and draft counters unchanged when filtering the list", async () 
   await screen.findByRole("table");
   expect(within(metrics).getByText("51")).toBeTruthy();
   expect(within(metrics).getByText("8")).toBeTruthy();
-  expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => params(path).get("limit") === "1")).toHaveLength(3);
+  expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => params(path).get("limit") === "1")).toHaveLength(4);
 });
 
 it("archives from the row menu and refreshes the list and metrics", async () => {

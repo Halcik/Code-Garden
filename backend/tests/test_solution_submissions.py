@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.api.student import get_judge0_service
 from app.main import app
 from app.models.solution import SolutionDraft, DraftUsedHint, Submission, SubmissionUsedHint, SolutionTestResult
+from app.models.task_assignment import TaskAssignment
 from app.models.task import Task, TaskTest, TaskHint
 from app.models.user import User, UserRole
 from app.services.judge0 import Judge0Error
@@ -129,7 +130,9 @@ def test_another_students_reveal_does_not_unlock_hint_reads(client, work, actors
     with Session(db_engine) as db:
         user = User(login=f'hint_reader_{task_id}', email=f'hint_reader_{task_id}@example.com',
                     role=UserRole.STUDENT, password_hash='unused')
-        db.add(user); db.commit(); user_id = user.id
+        db.add(user); db.flush(); user_id = user.id
+        db.add(TaskAssignment(task_id=work[1], student_id=user_id, assigned_by_teacher_id=actors['TEACHER']))
+        db.commit()
     client.cookies.clear()
     client.cookies.set(get_settings().cookie_name, create_access_token(user_id))
     assert client.get(path + '/hints/1').status_code == 404
@@ -282,7 +285,9 @@ def test_student_and_task_isolation(client, work, actors, db_engine):
     submit(client, path)
     with Session(db_engine) as db:
         user = User(login='second_student', email='second_student@example.com', role=UserRole.STUDENT, password_hash='unused')
-        db.add(user); db.commit(); user_id = user.id
+        db.add(user); db.flush(); user_id = user.id
+        db.add(TaskAssignment(task_id=work[1], student_id=user_id, assigned_by_teacher_id=actors['TEACHER']))
+        db.commit()
     client.cookies.clear(); client.cookies.set(get_settings().cookie_name, create_access_token(user_id))
     other = client.get(path + '/draft').json()
     assert other['id'] != first['id'] and other['source_code'] == "print('starter')"

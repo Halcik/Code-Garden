@@ -60,7 +60,7 @@ afterEach(cleanup);
 
 it("opens the real detail screen from the catalog and returns to the catalog", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => path.startsWith("/student/tasks?")
-    ? Response.json({ items: [task], total: 1, limit: 24, offset: 0 }) : Response.json(task));
+    ? Response.json({ items: path.includes("view=assigned") ? [] : [task], total: path.includes("view=assigned") ? 0 : 1, limit: 24, offset: 0 }) : Response.json(task));
   render(<MemoryRouter initialEntries={["/student/tasks"]}><Routes>
     <Route path="/student/tasks" element={<StudentTasksPage />} />
     <Route path="/student/tasks/:taskId" element={<StudentTaskPage />} />

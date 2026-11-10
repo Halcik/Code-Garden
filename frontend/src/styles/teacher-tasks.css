@@ -20,6 +20,7 @@
 .teacher-layout .admin-content { max-width: none; padding: 32px 40px 48px; }
 .teacher-layout .admin-card { box-shadow: var(--task-card-shadow); }
 .teacher-layout .admin-sidebar nav a { min-height: 40px; padding: 10px 12px; }
+.teacher-layout .admin-sidebar nav a .design-icon { color: inherit; }
 .teacher-nav-icon { display: inline-block; width: 17px; height: 17px; flex-shrink: 0; background: currentColor; mask-repeat: no-repeat; mask-position: center; mask-size: contain; }
 .teacher-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; }
 .teacher-layout .admin-button { text-decoration: none; }
@@ -51,6 +52,8 @@
 .teacher-layout .teacher-table td { height: 56px; padding: 12px 16px; }
 .teacher-open-link { color: var(--color-accent); font-weight: 600; text-decoration: none; }
 .teacher-open-link:hover { text-decoration: underline; }
+.teacher-assign-button { padding: 0; border: 0; background: transparent; font: inherit; font-weight: 600; cursor: pointer; }
+.teacher-assign-button:disabled { opacity: .5; cursor: not-allowed; text-decoration: none; }
 .teacher-task-link { color: var(--color-text); font-weight: 600; text-decoration: none; }
 .teacher-task-link:hover { color: var(--color-accent); text-decoration: underline; }
 .teacher-table tbody tr:hover { background: var(--color-surface-muted); }

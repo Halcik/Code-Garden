@@ -9,6 +9,7 @@ from app.api.dependencies import check_origin, require_role
 from app.db.session import get_db
 from app.models.task import Task, TaskDifficulty, TaskStatus, TaskTest, TaskHint
 from app.models.user import User, UserRole
+from app.models.task_assignment import TaskAssignment
 from app.schemas.task import TaskArchiveRequest, TaskCreate, TaskList, TaskResponse, TaskUpdate
 from app.schemas.task_test import TaskTestWrite, TaskTestPatch, TaskTestResponse, TaskTestReorder
 
@@ -28,6 +29,7 @@ def execution_environments(author: User = Depends(require_role(UserRole.TEACHER)
 def list_tasks(
     response: Response,
     archived: bool | None = None,
+    assigned: bool | None = None,
     difficulty: TaskDifficulty | None = None,
     status: TaskStatus | None = None,
     topic: str | None = Query(None, max_length=100),
@@ -41,6 +43,11 @@ def list_tasks(
 ):
     response.headers["Cache-Control"] = "no-store"
     filters = [Task.author_id == author.id]
+    if assigned is not None:
+        has_assignment = select(TaskAssignment.id).where(
+            TaskAssignment.task_id == Task.id,
+            TaskAssignment.assigned_by_teacher_id == author.id).exists()
+        filters.append(has_assignment if assigned else ~has_assignment)
     if archived is not None:
         filters.append(Task.is_archived == archived)
     filters.extend(task_filters(search=q, topic=topic, difficulty=difficulty))

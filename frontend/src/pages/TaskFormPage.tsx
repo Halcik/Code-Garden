@@ -1,4 +1,5 @@
 import TaskHints from "../components/teacher/TaskHints";
+import TaskAssignments from "../components/teacher/TaskAssignments";
 import TaskTests from "../components/teacher/TaskTests";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -31,6 +32,7 @@ export default function TaskFormPage() {
   const [saving, setSaving] = useState(false);
   const [archived, setArchived] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [assigning, setAssigning] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [draftTests, setDraftTests] = useState<TestInput[]>([]);
   const [draftHints, setDraftHints] = useState<HintInput[]>([]);
@@ -54,6 +56,7 @@ export default function TaskFormPage() {
     const controller = new AbortController();
     generation.current += 1;
     setError(""); setLoadError(""); setSuccess(""); setOriginal(null); setForm(emptyForm); setArchived(false);
+    setAssigning(false);
     setDraftTests([]); setDraftHints([]); setEditingTest(false); setEditingHint(false);
     if (!taskId) { setLoading(false); return () => controller.abort(); }
     setLoading(true);
@@ -138,7 +141,8 @@ export default function TaskFormPage() {
         <p className="editor-save-note">{saving ? "Zapisywanie zmian…" : (taskId ? "Edytuj dane zadania" : "Nowa wersja robocza · Uzupełnij informacje i zapisz zadanie")}</p>
         {taskId && <Link className="teacher-open-link" to={`/teacher/tasks/${taskId}/submissions`}>Rozwiązania uczniów</Link>}
       </div>
-      <div className="editor-header-actions"><PlaceholderButton icon="Eye">Podgląd</PlaceholderButton><PlaceholderButton icon="Play">Przetestuj zadanie</PlaceholderButton>
+      <div className="editor-header-actions"><PlaceholderButton icon="Eye">Podgląd</PlaceholderButton>
+        <button type="button" className="admin-button primary" disabled={!taskId || loading || saving || Boolean(loadError)} title={!taskId ? "Najpierw zapisz zadanie" : undefined} onClick={() => setAssigning(true)}><EditorIcon name="Send" />Przypisz zadanie</button>
         {archived ? <button className="admin-button primary" type="button" disabled={saving} onClick={restore}>{saving ? "Przywracanie…" : "Przywróć"}</button>
           : <button className="admin-button primary" form="task-basics-form" disabled={saving || loading || Boolean(loadError)} type="submit"><EditorIcon name="Save" />{saving ? "Zapisywanie…" : taskId ? "Zapisz zmiany" : "Utwórz zadanie"}</button>}
       </div>
@@ -193,6 +197,7 @@ export default function TaskFormPage() {
             </fieldset>
           </section>} onArchive={taskId && !archived ? archive : undefined} busy={saving} archiving={archiving} /></aside>
         </div>
+        {taskId && assigning && <TaskAssignments key={`assignments-${taskId}`} taskId={taskId} available={!saving && !archived && original?.status === "READY"} onClose={() => setAssigning(false)} />}
       </>}
   </div>;
 }

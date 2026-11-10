@@ -8,6 +8,8 @@ import StudentTasksPage, { StudentLayout } from "./pages/StudentTasksPage";
 import StudentTaskPage from "./pages/StudentTaskPage";
 import AdminUsersPage from "./pages/AdminUsersPage";
 import TeacherTasksPage, { TeacherLayout } from "./pages/TeacherTasksPage";
+import TeacherGroupsPage from "./pages/TeacherGroupsPage";
+import StudentGroupsPage from "./pages/StudentGroupsPage";
 
 import TaskFormPage from "./pages/TaskFormPage";
 import TeacherSubmissionsPage from "./pages/TeacherSubmissionsPage";
@@ -29,12 +31,16 @@ export default function App() {
                 <Route index element={<Navigate to="tasks" replace />} />
                 <Route path="tasks" element={<StudentTasksPage />} />
                 <Route path="tasks/:taskId" element={<StudentTaskPage />} />
+                <Route path="groups" element={<StudentGroupsPage />} />
+                <Route path="groups/:groupId" element={<StudentGroupsPage />} />
               </Route>
             </Route>
             <Route element={<ProtectedRoute role="TEACHER" />}>
               <Route path="/teacher" element={<TeacherLayout />}>
                 <Route index element={<Navigate to="tasks" replace />} />
                 <Route path="tasks" element={<TeacherTasksPage />} />
+                <Route path="groups" element={<TeacherGroupsPage />} />
+                <Route path="groups/:groupId" element={<TeacherGroupsPage />} />
                 <Route path="submissions" element={<TeacherSubmissionQueuePage />} />
                 <Route path="submissions/tasks/:taskId/students/:studentId" element={<TeacherSubmissionsPage />} />
                 <Route path="tasks/new" element={<TaskFormPage key="new" />} />

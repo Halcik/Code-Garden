@@ -5,6 +5,7 @@ import { apiFetch } from "../api/client";
 import StudentTasksPage from "./StudentTasksPage";
 import StudentTaskPage from "./StudentTaskPage";
 
+vi.mock("../components/StudentAssignedTasks", () => ({ default: () => <section aria-label="Przypisane zadania"><h2>Zadania przypisane przez nauczyciela</h2></section> }));
 vi.mock("../api/client", () => ({ apiFetch: vi.fn() }));
 vi.mock("../auth/AuthProvider", () => ({ useAuth: () => ({ retrySession }) }));
 const retrySession = vi.fn();
@@ -27,13 +28,14 @@ async function nextPage() {
   fireEvent.click(screen.getByRole("button", { name: "Następna" }));
   await loaded();
 }
-function assignedSection() { return screen.queryByRole("region", { name: "Zadania przypisane przez nauczyciela" }); }
+function assignedSection() { return screen.queryByRole("region", { name: "Katalog zadań" }); }
 
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(apiFetch).mockImplementation(async path => page(path));
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
+
 
 it.each([
   ["PENDING", "Oczekuje na sprawdzenie"],
@@ -151,7 +153,7 @@ it.each([[25, 24], [1, 0]])("corrects an out-of-range offset after total shrinks
 
 it.each([
   [401, "Sesja wygasła. Zaloguj się ponownie."],
-  [403, "Katalog jest dostępny tylko dla uczniów."],
+  [403, "Moje zadania są dostępne tylko dla uczniów."],
 ])("refreshes the session on HTTP %s", async (status, message) => {
   vi.mocked(apiFetch).mockResolvedValueOnce(new Response(null, { status }));
   mount();
@@ -239,28 +241,13 @@ it("aborts the active request on unmount", async () => {
   expect(retrySession).not.toHaveBeenCalled();
 });
 
-it("switches all/assigned/catalog sections without refetching or losing filters", async () => {
+it("shows the ready catalogue and a separate assigned view", async () => {
   mount(); await loaded();
-  fireEvent.change(screen.getByLabelText("Trudność"), { target: { value: "HARD" } });
-  await loaded();
-  const count = requests().length;
-  const tabs = within(screen.getByRole("group", { name: "Widok zadań" }));
-  expect(tabs.getByRole("button", { name: /^Wszystkie/ }).getAttribute("aria-pressed")).toBe("true");
+  expect(screen.getByRole("heading", { name: "Zadania" })).toBeTruthy();
   expect(assignedSection()).toBeTruthy();
-  fireEvent.click(tabs.getByRole("button", { name: "Przypisane" }));
-  expect(assignedSection()).toBeTruthy();
-  expect(screen.queryByRole("region", { name: "Katalog zadań" })).toBeNull();
-  expect(screen.queryByRole("search")).toBeNull();
-  expect(tabs.getByRole("button", { name: "Przypisane" }).getAttribute("aria-pressed")).toBe("true");
-  fireEvent.click(tabs.getByRole("button", { name: /^Z katalogu/ }));
-  expect(assignedSection()).toBeNull();
+  expect(screen.queryByRole("button", { name: /^Z katalogu/ })).toBeNull();
+  expect(screen.queryByText("Tutaj pojawi? si? zadania przypisane przez nauczyciela")).toBeNull();
   expect(screen.getByRole("link", { name: task.title })).toBeTruthy();
-  expect((screen.getByLabelText("Trudność") as HTMLSelectElement).value).toBe("HARD");
-  expect(tabs.getByRole("button", { name: /^Z katalogu/ }).getAttribute("aria-pressed")).toBe("true");
-  fireEvent.click(tabs.getByRole("button", { name: /^Wszystkie/ }));
-  expect(assignedSection()).toBeTruthy();
-  expect(screen.getByRole("region", { name: "Katalog zadań" })).toBeTruthy();
-  expect(requests()).toHaveLength(count);
 });
 
 it("clears all filters, sort and offset while keeping the assigned section", async () => {
@@ -277,7 +264,7 @@ it("clears all filters, sort and offset while keeping the assigned section", asy
   await loaded(); await nextPage();
   fireEvent.click(screen.getByRole("button", { name: "Wyczyść filtry" }));
   await loaded();
-  expect(Object.fromEntries(requests().at(-1)!)).toEqual({ limit: "24", sort_by: "created_at", sort_order: "desc", offset: "0" });
+  expect(Object.fromEntries(requests().at(-1)!)).toEqual({ limit: "24", sort_by: "created_at", sort_order: "desc", offset: "0", view: "catalog" });
   for (const label of ["Wyszukaj", "Temat", "Trudność", "Typ"]) expect((screen.getByLabelText(label) as HTMLInputElement).value).toBe("");
   expect((screen.getByLabelText(/Sortuj według/) as HTMLSelectElement).value).toBe("created_at:desc");
   expect(assignedSection()).toBeTruthy();
@@ -340,7 +327,7 @@ it("shows full progress counts even while filtering a paginated list", async () 
   fireEvent.click(tabs.getByRole("button", { name: "Ukończone 7" }));
   await loaded();
   expect(tabs.getByRole("button", { name: "Wszystkie 49" })).toBeTruthy();
-  expect(tabs.getByRole("button", { name: "Z katalogu 49" })).toBeTruthy();
+  expect(tabs.queryByRole("button", { name: "Z katalogu 49" })).toBeNull();
   expect(tabs.getByRole("button", { name: "W toku 12" })).toBeTruthy();
 });
 

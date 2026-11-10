@@ -30,6 +30,26 @@ function fill() {
 }
 beforeEach(() => { theme.value = "light"; vi.resetAllMocks(); vi.mocked(apiFetch).mockImplementation(async () => Response.json(task)); });
 afterEach(cleanup);
+
+it("opens assignments in a centred dialog from the header and restores focus when closing", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => Response.json(path.includes("/assignments") || path === "/teacher/groups" ? [] : task));
+  open(true);
+  await screen.findByLabelText("Tytuł");
+  expect(screen.queryByRole("dialog")).toBeNull();
+  const button = screen.getByRole("button", { name: "Przypisz zadanie" });
+  button.focus(); fireEvent.click(button);
+  const dialog = await screen.findByRole("dialog", { name: "Przypisz zadanie" });
+  expect(dialog.className).toContain("group-assignment-dialog");
+  expect(screen.getByText("Przypisywać można zapisane, gotowe i niezarchiwizowane zadania.")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Zamknij przypisywanie" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(document.activeElement).toBe(button);
+});
+
+it("requires saving a new task before opening assignments", () => {
+  open();
+  expect((screen.getByRole("button", { name: "Przypisz zadanie" }) as HTMLButtonElement).disabled).toBe(true);
+});
 it("creates a task, trims fields and returns to the list", async () => {
   open(); expect((screen.getByLabelText("Tytuł") as HTMLInputElement).value).toBe(""); fill();
   fireEvent.click(screen.getByRole("button", { name: "Utwórz zadanie" }));

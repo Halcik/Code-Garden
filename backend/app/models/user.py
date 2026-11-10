@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
     from app.models.task import Task
+    from app.models.group import StudentGroup
 
 from app.db.base import Base
 
@@ -31,6 +32,10 @@ class TeacherApproval(str, enum.Enum):
 class User(Base):
     __tablename__ = "users"
     tasks: Mapped[list["Task"]] = relationship(back_populates="author", passive_deletes="all")
+    owned_groups: Mapped[list["StudentGroup"]] = relationship(back_populates="teacher", passive_deletes="all")
+    student_groups: Mapped[list["StudentGroup"]] = relationship(
+        secondary="group_students", back_populates="students", passive_deletes=True,
+    )
     __table_args__ = (
         UniqueConstraint("login", name="uq_users_login"),
         UniqueConstraint("email", name="uq_users_email"),

@@ -102,8 +102,8 @@ npm run dev
 `npm run dev` uruchamia bazę, stosuje migracje, przygotowuje obraz i kontenery Judge0,
 a następnie uruchamia frontend oraz backend
 w jednym terminalu. Otwórz `http://localhost:5173`; API działa na `http://localhost:8000`.
-`Ctrl+C` zatrzymuje oba serwery, a baza i Judge0 pozostają uruchomione w Dockerze.
-Jeśli jeden serwer zakończy działanie, drugi również zostanie zatrzymany.
+`Ctrl+C` zatrzymuje oba serwery oraz kontenery bazy i Judge0. Dane w bazach są zachowane.
+Jeśli jeden serwer zakończy działanie, drugi oraz kontenery również zostaną zatrzymane.
 
 Możesz też uruchamiać serwery osobno: `npm run dev:frontend` i `npm run dev:backend`.
 Sam Judge0 uruchomisz przez `npm run dev:judge0`. Docker Desktop musi być włączony.
@@ -124,6 +124,9 @@ Instrukcje konfiguracji i migracji znajdują się w [backend/README.md](backend/
 Konfiguracja API frontendu, opis flow i ręczny test end-to-end są w [frontend/README.md](frontend/README.md).
 
 ## Uruchamianie kodu Python (KAN-32)
+
+Przypisywanie zadań uczniom i grupom oraz zasady widoku „Moje zadania”:
+[KAN-45](docs/KAN-45.md).
 
 Własny obraz Judge0 CE 1.13.1 zawiera cztery środowiska CPython 3.11–3.14
 (domyślnie zadania używają 3.13), również dla Docker Desktop/WSL2 z cgroups v2.
