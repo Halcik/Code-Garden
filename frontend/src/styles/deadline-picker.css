@@ -1,0 +1,25 @@
+.deadline-picker { display: flex; flex-direction: column; gap: 8px; min-width: 0; width: 100%; }
+.deadline-picker > label { color: var(--color-text-secondary); font-size: 12px; }
+.deadline-picker-field { display: flex; align-items: center; border: 1px solid var(--color-input-border); border-radius: 8px; background: var(--color-surface-muted); overflow: hidden; }
+.deadline-picker-field:focus-within { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.deadline-picker .deadline-picker-field input { width: 100%; min-width: 0; padding: 10px 12px; background: transparent; border: 0; border-radius: 0; color: var(--color-text); font: inherit; font-size: 14px; outline: none; }
+.deadline-picker-field input::-webkit-calendar-picker-indicator { display: none; }
+.deadline-picker .deadline-picker-trigger { display: flex; align-items: center; justify-content: center; padding: 10px 12px; align-self: stretch; border: 0; border-left: 1px solid var(--color-border); background: var(--color-brand-surface); color: var(--color-accent); cursor: pointer; }
+.deadline-calendar { padding: 16px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); color: var(--color-text); box-shadow: 0 4px 16px rgb(0 0 0 / 10%); }
+.deadline-calendar-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.deadline-calendar-heading strong { font-size: 14px; text-transform: capitalize; }
+.deadline-calendar button { border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--color-text); font: inherit; cursor: pointer; }
+.deadline-calendar-heading button { width: 32px; height: 32px; font-size: 24px; line-height: 1; }
+.deadline-calendar-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.deadline-calendar-days button, .deadline-weekday { display: flex; align-items: center; justify-content: center; min-height: 34px; font-size: 13px; }
+.deadline-weekday { color: var(--color-text-muted); font-size: 11px; }
+.deadline-calendar button:hover { background: var(--color-brand-surface); color: var(--color-accent); }
+.deadline-calendar-days button[aria-current="date"] { border-color: var(--color-accent); }
+.deadline-calendar-days button[aria-pressed="true"], .deadline-calendar .deadline-calendar-done { background: var(--color-button); color: var(--color-button-text); }
+.deadline-calendar button:focus-visible, .deadline-picker-trigger:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.deadline-calendar-time { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--color-border); }
+.deadline-calendar-time label { color: var(--color-text-secondary); font-size: 12px; }
+.deadline-picker .deadline-calendar-time input { width: auto; padding: 7px 10px; border: 1px solid var(--color-input-border); border-radius: 8px; background: var(--color-surface-muted); color: var(--color-text); font: inherit; font-size: 13px; }
+.deadline-calendar-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.deadline-calendar-actions button { padding: 7px 10px; font-size: 12px; }
+.deadline-picker button:disabled, .deadline-picker input:disabled { opacity: .5; cursor: not-allowed; }

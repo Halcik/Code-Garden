@@ -301,7 +301,7 @@ it("filters progress on the backend and resets pagination", async () => {
   fireEvent.click(tabs.getByRole("button", { name: /^Wszystkie/ }));
   await loaded();
   expect(requests().at(-1)?.has("progress_status")).toBe(false);
-  expect((tabs.getByRole("button", { name: "Po terminie" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((tabs.getByRole("button", { name: "Po terminie" }) as HTMLButtonElement).disabled).toBe(false);
 });
 
 it("shows each student's progress on task cards", async () => {

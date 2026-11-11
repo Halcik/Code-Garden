@@ -46,7 +46,7 @@ export default function StudentTasksPage() {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError("");
-    listStudentTasks({ ...filters, view: "catalog" }, controller.signal).then(result => {
+    listStudentTasks({ ...filters, overdue: "", view: "catalog" }, controller.signal).then(result => {
       if (controller.signal.aborted) return;
       if (result.total > 0 && filters.offset >= result.total) setFilters(previous => ({ ...previous, offset: Math.floor((result.total - 1) / result.limit) * result.limit }));
       setData(result);
@@ -63,12 +63,12 @@ export default function StudentTasksPage() {
   return <>
     <div className="admin-page-heading student-heading"><div><h1>Zadania</h1><p>Ćwicz samodzielnie z katalogu lub rozwiązuj zadania przypisane przez nauczyciela.</p></div></div>
     <div className="admin-card student-view-tabs" role="group" aria-label="Widok zadań">
-      <button type="button" aria-pressed={!filters.progress_status} onClick={() => change("progress_status", "")}>Wszystkie <span className="student-view-count">{loading ? "…" : assignmentCount ?? "—"}</span></button>
+      <button type="button" aria-pressed={!filters.progress_status && !filters.overdue} onClick={() => setFilters(previous => ({ ...previous, progress_status: "", overdue: "", offset: 0 }))}>Wszystkie <span className="student-view-count">{loading ? "…" : assignmentCount ?? "—"}</span></button>
       {Object.entries(progressLabels).map(([status, label]) => {
         const count = data?.progress_counts?.[status as keyof typeof progressLabels];
-        return <button key={status} type="button" aria-pressed={filters.progress_status === status} onClick={() => { change("progress_status", status); }}>{label}{(loading || (count != null && count > 0)) && <> <span className="student-view-count">{loading ? "…" : count}</span></>}</button>;
+        return <button key={status} type="button" aria-pressed={filters.progress_status === status} onClick={() => { setFilters(previous => ({ ...previous, progress_status: status, overdue: "", offset: 0 })); }}>{label}{(loading || (count != null && count > 0)) && <> <span className="student-view-count">{loading ? "…" : count}</span></>}</button>;
       })}
-      <button type="button" disabled title="Filtrowanie według terminów będzie dostępne wkrótce">Po terminie</button>
+      <button type="button" aria-pressed={filters.overdue === "true"} onClick={() => setFilters(previous => ({ ...previous, overdue: "true", progress_status: "", offset: 0 }))}>Po terminie{(loading || (data?.overdue_count ?? 0) > 0) && <> <span className="student-view-count">{loading ? "…" : data?.overdue_count}</span></>}</button>
     </div>
     <div className="admin-card student-filters" role="search" aria-label="Filtry moich zadań">
       <label className="student-search">Wyszukaj<input maxLength={200} placeholder="Szukaj po tytule" value={search} onChange={event => setSearch(event.target.value)} /></label>

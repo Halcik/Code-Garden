@@ -44,6 +44,7 @@ def list_student_tasks(
     user: User = Depends(get_current_user),
     view: Literal["assigned", "catalog"] = "assigned",
     progress_status: Literal["NOT_STARTED", "IN_PROGRESS", "COMPLETED"] | None = None,
+    overdue: bool = False,
     search: str | None = Query(None, max_length=200),
     topic: str | None = Query(None, max_length=100),
     difficulty: TaskDifficulty | None = None,
@@ -58,7 +59,8 @@ def list_student_tasks(
     filters = visible_student_tasks(user.id if view == "assigned" else None)
     filters.extend(task_filters(search=search, topic=topic, difficulty=difficulty, task_type=task_type))
     return task_page(db, filters, sort_by=sort_by, sort_order=sort_order, limit=limit, offset=offset,
-                     student_id=user.id, progress_status=progress_status)
+                     student_id=user.id, progress_status=progress_status,
+                     overdue=overdue, assignment_deadlines=view == "assigned")
 
 
 @router.get("/tasks/{task_id}", response_model=StudentTaskDetail)

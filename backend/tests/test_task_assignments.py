@@ -452,3 +452,97 @@ def test_non_author_can_revoke_legacy_archived_source_after_group_deletion(clien
     row = response.json()[0]
     assert row["group_id"] is None and row["source_group_id"] == data["foreign_group"]
     assert client.delete(f"/teacher/tasks/{data['task']}/assignments/{row['id']}").status_code == 204
+
+
+@pytest.mark.parametrize("kind", ["assignments", "group-assignments"])
+@pytest.mark.parametrize("deadline", [None, "2020-01-01T12:00:00+02:00"])
+def test_assignment_deadline_create(client, data, kind, deadline):
+    payload = {"student_id": data["student"]} if kind == "assignments" else {"group_id": data["group"]}
+    response = client.post(f"/teacher/tasks/{data['task']}/{kind}", json={**payload, "deadline": deadline})
+    assert response.status_code in (200, 201)
+    rows = client.get(f"/teacher/tasks/{data['task']}/assignments").json()
+    assert all(bool(row["deadline"]) == bool(deadline) for row in rows)
+    login(client, data["student"])
+    task = client.get("/student/tasks").json()["items"][0]
+    assert bool(task["deadline"]) == bool(deadline)
+    assert task["is_overdue"] == bool(deadline)
+    assert task["progress_status"] == "NOT_STARTED"
+
+
+def test_deadline_edit_permissions_and_sources(client, data):
+    direct = assign(client, data).json()
+    assert direct["deadline"] is None
+    assert assign_group(client, data).status_code == 200
+    rows = client.get(f"/teacher/tasks/{data['task']}/assignments").json()
+    grouped = next(row for row in rows if row["student_id"] == data["student"] and row["source_group_id"])
+    def patch(row, deadline):
+        return client.patch(f"/teacher/tasks/{data['task']}/assignments/{row['id']}", json={"deadline": deadline})
+    for deadline in ("2030-01-01T12:00:00Z", "2020-01-01T12:00:00Z", None):
+        changed = patch(direct, deadline)
+        assert changed.status_code == 200
+        assert changed.json()["id"] == direct["id"]
+        assert changed.json()["source_group_id"] is None
+        assert bool(changed.json()["deadline"]) == bool(deadline)
+    patch(direct, "2030-01-01T12:00:00Z")
+    patch(grouped, "2020-01-01T12:00:00Z")
+    login(client, data["other_teacher"])
+    assert patch(direct, None).status_code == 404
+    login(client, data["student"])
+    assert patch(direct, None).status_code == 403
+    page = client.get("/student/tasks?overdue=true").json()
+    assert page["total"] == 1 and page["items"][0]["deadline"].startswith("2020")
+    assert page["overdue_count"] == 1
+    assert client.get("/student/tasks?view=catalog&progress_status=COMPLETED").json()["overdue_count"] == 1
+    assert client.get("/student/tasks?view=catalog&offset=24").json()["overdue_count"] == 1
+    login(client, data["outsider"])
+    assert client.get("/student/tasks").json()["total"] == 0
+    assert all(row["deadline"] is None for row in client.get("/student/tasks?view=catalog").json()["items"])
+    login(client, data["teacher"])
+    assert client.delete(f"/teacher/groups/{data['group']}").status_code == 204
+    assert patch(grouped, "2021-01-01T12:00:00Z").status_code == 200
+    assert client.delete(f"/teacher/tasks/{data['task']}/assignments/{grouped['id']}").status_code == 204
+    assert len(client.get(f"/teacher/tasks/{data['task']}/assignments").json()) == 2
+    login(client, data["student"])
+    assert client.get("/student/tasks").json()["items"][0]["deadline"].startswith("2030")
+    assert client.get("/student/tasks?overdue=true").json()["total"] == 0
+    assert client.get("/student/tasks?view=catalog").json()["overdue_count"] == 0
+
+
+def test_deadline_requires_timezone_and_explicit_patch(client, data):
+    row = assign(client, data).json()
+    path = f"/teacher/tasks/{data['task']}/assignments/{row['id']}"
+    for payload in ({}, {"deadline": "2030-01-01T12:00"}, {"deadline": None, "teacher_id": data["teacher"]}):
+        assert client.patch(path, json=payload).status_code == 422
+
+
+def test_bulk_group_deadline_preserves_other_sources(client, data, db_engine):
+    direct = assign(client, data).json()
+    assign_group(client, data)
+    assign_group(client, data, "overlap")
+    path = f"/teacher/groups/{data['group']}/task-assignments/{data['task']}"
+    with Session(db_engine) as db:
+        from app.models.group import group_students
+        db.execute(group_students.delete().where(group_students.c.group_id == data["group"],
+            group_students.c.student_id == data["student"]))
+        db.commit()
+    original_ids = {row["id"] for row in client.get(f"/teacher/tasks/{data['task']}/assignments").json()}
+    for deadline in ("2030-01-01T12:00:00Z", "2031-01-01T12:00:00Z", None):
+        assert client.patch(path, json={"deadline": deadline}).status_code == 204
+        rows = client.get(f"/teacher/tasks/{data['task']}/assignments").json()
+        assert {row["id"] for row in rows} == original_ids
+        assert all(bool(row["deadline"]) == bool(deadline) for row in rows if row["source_group_id"] == data["group"])
+        assert all(row["deadline"] is None for row in rows if row["source_group_id"] != data["group"])
+        group_row = client.get(f"/teacher/groups/{data['group']}/task-assignments").json()[0]
+        assert bool(group_row["deadline"]) == bool(deadline)
+        assert group_row["deadlines_differ"] is False
+    assert client.patch(f"/teacher/tasks/{data['task']}/assignments/{next(row['id'] for row in rows if row['source_group_id'] == data['group'])}",
+        json={"deadline": "2030-01-01T12:00:00Z"}).status_code == 200
+    assert client.get(f"/teacher/groups/{data['group']}/task-assignments").json()[0]["deadlines_differ"] is True
+    login(client, data["other_teacher"])
+    assert client.patch(path, json={"deadline": None}).status_code == 404
+    login(client, data["student"])
+    assert client.patch(path, json={"deadline": None}).status_code == 403
+    login(client, data["teacher"])
+    assert client.patch(path, json={}).status_code == 422
+    assert client.patch(path, json={"deadline": None}, headers={"Origin": "https://untrusted.invalid"}).status_code == 403
+    assert client.patch(path.replace(str(data["task"]), "2147483647"), json={"deadline": None}).status_code == 404

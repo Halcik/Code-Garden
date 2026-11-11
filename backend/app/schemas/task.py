@@ -57,6 +57,8 @@ class StudentTaskDetail(StudentTaskResponse):
 
 
 class StudentCatalogTask(StudentTaskResponse):
+    deadline: datetime | None = None
+    is_overdue: bool = False
     progress_status: Literal["NOT_STARTED", "IN_PROGRESS", "COMPLETED"]
     review_status: Literal["PENDING", "ACCEPTED", "CHANGES_REQUESTED"] | None = None
 
@@ -68,6 +70,7 @@ class StudentProgressCounts(BaseModel):
 
 
 class StudentTaskList(BaseModel):
+    overdue_count: int = 0
     items: list[StudentCatalogTask]
     total: int
     limit: int

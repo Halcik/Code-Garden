@@ -22,6 +22,30 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+it("edits and clears a deadline without assigning again", async () => {
+  const original = vi.mocked(apiFetch).getMockImplementation()!;
+  vi.mocked(apiFetch).mockImplementation(async (path, options) => {
+    if (options?.method === "PATCH") return Response.json({ ...assignment, ...JSON.parse(options.body as string) });
+    if (path.endsWith("/assignments")) return Response.json([assignment]);
+    return original(path, options);
+  });
+  await open(false);
+  fireEvent.click(screen.getByRole("button", { name: /Edytuj termin:/ }));
+  fireEvent.change(screen.getByLabelText("Termin przypisania"), { target: { value: "2030-11-20T23:59" } });
+  fireEvent.click(screen.getByRole("button", { name: "Zapisz termin" }));
+  await waitFor(() => expect(screen.queryByRole("group", { name: "Edycja terminu" })).toBeNull());
+  let patches = vi.mocked(apiFetch).mock.calls.filter(([, options]) => options?.method === "PATCH");
+  expect(JSON.parse(patches[0][1]!.body as string)).toEqual({ deadline: new Date("2030-11-20T23:59").toISOString() });
+  fireEvent.click(screen.getByRole("button", { name: /Edytuj termin:/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Usuń termin" }));
+  fireEvent.click(screen.getByRole("button", { name: "Zapisz termin" }));
+  await waitFor(() => expect(screen.queryByRole("group", { name: "Edycja terminu" })).toBeNull());
+  patches = vi.mocked(apiFetch).mock.calls.filter(([, options]) => options?.method === "PATCH");
+  expect(JSON.parse(patches[1][1]!.body as string)).toEqual({ deadline: null });
+  expect(patches.every(([path]) => path === "/teacher/tasks/7/assignments/1")).toBe(true);
+  expect(vi.mocked(apiFetch).mock.calls.some(([, options]) => options?.method === "POST")).toBe(false);
+});
+
 it.each([null, 42])("revokes an owned source including a deleted group source %s", async sourceGroupId => {
   const original = vi.mocked(apiFetch).getMockImplementation()!;
   vi.mocked(apiFetch).mockImplementation((path, options) => path.endsWith("/assignments") && options?.method !== "POST"

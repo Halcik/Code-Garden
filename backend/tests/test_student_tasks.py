@@ -54,7 +54,7 @@ def test_catalog_visibility_and_response(client, catalog_users):
     data = response.json()
     assert data["total"] == 2
     assert [item["title"] for item in data["items"]] == ["Alpha_100%", "Beta"]
-    assert set(data["items"][0]) == {"id", "title", "description", "topic", "difficulty", "task_type", "estimated_time_minutes", "progress_status", "review_status"}
+    assert set(data["items"][0]) == {"id", "title", "description", "topic", "difficulty", "task_type", "estimated_time_minutes", "progress_status", "review_status", "deadline", "is_overdue"}
     assert all(item["progress_status"] == "NOT_STARTED" for item in data["items"])
 
 

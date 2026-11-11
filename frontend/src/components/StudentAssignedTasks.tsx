@@ -28,12 +28,12 @@ export default function StudentAssignedTasks({ filters }: { filters: CatalogFilt
         if (reason instanceof TasksApiError && [401, 403].includes(reason.status)) retrySession();
       }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [filters.search, filters.topic, filters.difficulty, filters.task_type, filters.sort_by, filters.sort_order, filters.progress_status, offset, attempt, retrySession]);
+  }, [filters.search, filters.topic, filters.difficulty, filters.task_type, filters.sort_by, filters.sort_order, filters.progress_status, filters.overdue, offset, attempt, retrySession]);
   return <section className="student-assigned-section" aria-label="Przypisane zadania" aria-busy={loading}>
     <div className="student-section-heading"><div><h2>Zadania przypisane przez nauczyciela</h2></div></div>
     {loading ? <p className="admin-card admin-state" role="status">Ładowanie przypisanych zadań…</p>
       : error ? <div className="admin-card admin-state" role="alert"><p>{error}</p><button className="admin-button" onClick={() => setAttempt(value => value + 1)}>Odśwież przypisane zadania</button></div>
-      : !data?.items.length ? <div className="admin-card student-assigned-empty"><span className="student-topic-icon" aria-hidden="true"><span style={{ maskImage: `url("${clipboardIcon}")` }} /></span><div><h3>Brak przypisanych zadań</h3><p>Możesz ćwiczyć samodzielnie, wybierając zadania z katalogu poniżej.</p></div></div>
+      : !data?.items.length ? <div className="admin-card student-assigned-empty"><span className="student-topic-icon" aria-hidden="true"><span style={{ maskImage: `url("${clipboardIcon}")` }} /></span><div><h3>{filters.overdue === "true" ? "Brak zadań po terminie" : "Brak przypisanych zadań"}</h3><p>Możesz ćwiczyć samodzielnie, wybierając zadania z katalogu poniżej.</p></div></div>
       : <><div className="student-task-grid">{data.items.map(task => <StudentTaskCard key={task.id} task={task} />)}</div>
         <nav className="admin-pagination student-pagination" aria-label="Strony przypisanych zadań">
           <button className="admin-button" disabled={!data.offset} onClick={() => setOffset(Math.max(0, data.offset - data.limit))}>Poprzednie przypisane</button>
