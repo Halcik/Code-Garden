@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import StudentTasksPage from "./StudentTasksPage";
 import { apiFetch } from "../api/client";
@@ -17,6 +17,27 @@ beforeEach(() => {
   });
 });
 afterEach(cleanup);
+
+it("filters overdue assignments without filtering the catalogue", async () => {
+  mount();
+  await screen.findByRole("link", { name: "Z katalogu" });
+  fireEvent.click(screen.getByRole("button", { name: "Po terminie" }));
+  await waitFor(() => expect(vi.mocked(apiFetch).mock.calls.some(([path]) => path.includes("overdue=true") && path.includes("view=assigned"))).toBe(true));
+  expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => path.includes("view=catalog")).every(([path]) => !path.includes("overdue=true"))).toBe(true);
+  expect(await screen.findByRole("link", { name: "Z katalogu" })).toBeTruthy();
+});
+
+it("shows the deadline and independent overdue marker only on assigned cards", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => Response.json({
+    items: [{ ...task, deadline: path.includes("view=assigned") ? "2020-01-01T12:00:00Z" : null, is_overdue: path.includes("view=assigned"), progress_status: "IN_PROGRESS" }], total: 1, limit: 24, offset: 0,
+  }));
+  mount();
+  const assigned = within(screen.getByRole("region", { name: "Przypisane zadania" }));
+  expect(await assigned.findByText(/Termin:/)).toBeTruthy();
+  expect(assigned.getByText(/po terminie/)).toBeTruthy();
+  expect(assigned.getByText("W toku")).toBeTruthy();
+  expect(within(screen.getByRole("region", { name: "Katalog zadań" })).queryByText(/Termin:/)).toBeNull();
+});
 
 it("shows assigned and catalogue cards together without a separate source switch", async () => {
   mount();

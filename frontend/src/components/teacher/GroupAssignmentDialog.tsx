@@ -1,3 +1,4 @@
+import DeadlinePicker from "./DeadlinePicker";
 import { useEffect, useRef, useState } from "react";
 import type { Group } from "../../api/groups";
 import { DIFFICULTIES, TASK_TYPES, listTasks, TasksApiError } from "../../api/tasks";
@@ -8,6 +9,7 @@ import GroupDialog from "./GroupDialog";
 
 export default function GroupAssignmentDialog({ group, onClose, onAssigned }: { group: Group; onClose: () => void; onAssigned: () => void }) {
   const { retrySession } = useAuth();
+  const [deadline, setDeadline] = useState("");
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({ q: "", offset: 0 });
   const [page, setPage] = useState<TaskList | null>(null);
@@ -37,7 +39,7 @@ export default function GroupAssignmentDialog({ group, onClose, onAssigned }: { 
     const controller = new AbortController(); action.current = controller;
     setPending(true); setError(""); setSuccess("");
     try {
-      const result = await assignTaskToGroup(selected, group.id, controller.signal);
+      const result = await assignTaskToGroup(selected, group.id, controller.signal, deadline ? new Date(deadline).toISOString() : undefined);
       if (!controller.signal.aborted) {
         setSuccess(`Nowe przypisania: ${result.assigned_count}. Już przypisane: ${result.already_assigned_count}. Uczniów w grupie: ${result.total_students}.`);
         onAssigned();
@@ -69,6 +71,7 @@ export default function GroupAssignmentDialog({ group, onClose, onAssigned }: { 
         <button type="button" className="admin-button" disabled={pending || page.offset + page.limit >= page.total} onClick={() => setFilters(previous => ({ ...previous, offset: page.offset + page.limit }))}>Następna</button>
       </nav>
     </>}
+    <DeadlinePicker label="Termin wykonania (opcjonalny)" disabled={pending} value={deadline} onChange={setDeadline} />
     <p className="group-form-note">Zadanie otrzymają aktualni członkowie grupy. Istniejące przypisania zostaną pominięte; osoby dołączające później nie otrzymają go automatycznie.</p>
     {error && <div role="alert"><p>{error}</p><button type="button" className="admin-text-button" disabled={pending} onClick={() => setAttempt(value => value + 1)}>Odśwież zadania</button></div>}
     {success && <p className="task-save-success" role="status">{success}</p>}

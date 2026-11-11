@@ -21,6 +21,7 @@ export default function StudentTaskCard({ task }: { task: StudentTask }) {
     </div>
     <h2><Link to={`/student/tasks/${task.id}`}>{task.title}</Link></h2><p className="student-description">{task.description}</p>
     <TaskBadges task={task} />
+    {task.deadline && <p className="student-task-deadline">Termin: <time dateTime={task.deadline}>{new Date(task.deadline).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })}</time>{task.is_overdue && <strong> · po terminie</strong>}</p>}
     <div className="student-card-footer"><span>{task.estimated_time_minutes == null ? "Czas nieokreślony" : `~${task.estimated_time_minutes} min`}</span><Link className="admin-button" to={`/student/tasks/${task.id}`}>Zobacz zadanie</Link></div>
   </article>;
 }

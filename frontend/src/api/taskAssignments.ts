@@ -4,7 +4,7 @@ import type { StudentIdentity } from "./groupInvitations";
 export type TaskAssignment = {
   id: number; task_id: number; student_id: number; student_login: string;
   assigned_by_teacher_id: number; group_id: number | null; group_name: string | null; created_at: string;
-  source_group_id?: number | null;
+  source_group_id?: number | null; deadline?: string | null;
 };
 export type GroupAssignmentResult = { total_students: number; assigned_count: number; already_assigned_count: number };
 export class AssignmentsApiError extends Error {
@@ -33,19 +33,25 @@ export const searchAssignmentStudents = (q: string, signal: AbortSignal) =>
   request<StudentIdentity[]>(`/teacher/assignment-students?${new URLSearchParams({ q })}`, { signal });
 export const listTaskAssignments = (id: string, signal: AbortSignal) =>
   request<TaskAssignment[]>(`/teacher/tasks/${id}/assignments`, { signal });
-export const assignTaskToStudent = (id: string, student_id: number, signal: AbortSignal) =>
-  request<TaskAssignment>(`/teacher/tasks/${id}/assignments`, { method: "POST", body: JSON.stringify({ student_id }), signal });
-export const assignTaskToGroup = (id: string, group_id: number, signal: AbortSignal) =>
-  request<GroupAssignmentResult>(`/teacher/tasks/${id}/group-assignments`, { method: "POST", body: JSON.stringify({ group_id }), signal });
+export const assignTaskToStudent = (id: string, student_id: number, signal: AbortSignal, deadline?: string | null) =>
+  request<TaskAssignment>(`/teacher/tasks/${id}/assignments`, { method: "POST", body: JSON.stringify({ student_id, ...(deadline !== undefined ? { deadline } : {}) }), signal });
+export const assignTaskToGroup = (id: string, group_id: number, signal: AbortSignal, deadline?: string | null) =>
+  request<GroupAssignmentResult>(`/teacher/tasks/${id}/group-assignments`, { method: "POST", body: JSON.stringify({ group_id, ...(deadline !== undefined ? { deadline } : {}) }), signal });
 
 export const revokeTaskAssignment = (taskId: string, assignmentId: number, signal: AbortSignal) =>
   request<void>(`/teacher/tasks/${taskId}/assignments/${assignmentId}`, { method: "DELETE", signal });
 
 export type GroupTaskAssignment = {
   task_id: number; title: string; topic: string; difficulty: "EASY" | "MEDIUM" | "HARD";
-  is_archived: boolean; student_count: number; created_at: string;
+  is_archived: boolean; student_count: number; created_at: string; deadline?: string | null; deadlines_differ?: boolean;
 };
 export const listGroupTaskAssignments = (groupId: number, signal: AbortSignal) =>
   request<GroupTaskAssignment[]>(`/teacher/groups/${groupId}/task-assignments`, { signal });
 export const removeGroupTaskAssignment = (groupId: number, taskId: number, signal: AbortSignal) =>
   request<void>(`/teacher/groups/${groupId}/task-assignments/${taskId}`, { method: "DELETE", signal });
+
+export const updateAssignmentDeadline = (taskId: string, assignmentId: number, deadline: string | null, signal: AbortSignal) =>
+  request<TaskAssignment>(`/teacher/tasks/${taskId}/assignments/${assignmentId}`, { method: "PATCH", body: JSON.stringify({ deadline }), signal });
+
+export const updateGroupAssignmentDeadline = (groupId: number, taskId: number, deadline: string | null, signal: AbortSignal) =>
+  request<void>(`/teacher/groups/${groupId}/task-assignments/${taskId}`, { method: "PATCH", body: JSON.stringify({ deadline }), signal });

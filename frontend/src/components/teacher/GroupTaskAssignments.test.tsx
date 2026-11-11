@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import GroupTaskAssignments from "./GroupTaskAssignments";
 import { apiFetch } from "../../api/client";
 
@@ -9,6 +9,68 @@ vi.mock("../../auth/AuthProvider", () => ({ useAuth: () => ({ retrySession }) })
 const task = { task_id: 15, title: "Pętle", topic: "Python", difficulty: "EASY", is_archived: false, student_count: 8, created_at: "2026-11-09T10:00:00Z" };
 beforeEach(() => { vi.resetAllMocks(); vi.mocked(apiFetch).mockResolvedValue(Response.json([task])); });
 afterEach(cleanup);
+
+it("previews the saved deadline and starts editing from its local date", async () => {
+  const deadline = "2030-11-20T15:30:00Z";
+  vi.mocked(apiFetch).mockResolvedValue(Response.json([{ ...task, deadline }]));
+  const { container } = render(<GroupTaskAssignments groupId={7} revision={0} onAssign={vi.fn()} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Edytuj termin: Pętle" }));
+  expect(container.querySelector("time")?.getAttribute("datetime")).toBe(deadline);
+  const date = new Date(deadline);
+  const localValue = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const input = screen.getByLabelText("Termin wykonania") as HTMLInputElement;
+  expect(input.value).toBe(localValue);
+  fireEvent.click(screen.getByRole("button", { name: "Wybierz datę: Termin wykonania" }));
+  expect(screen.getByText("listopad 2030")).toBeTruthy();
+  const checkbox = screen.getByRole("checkbox", { name: "Bez terminu (usuń termin)" });
+  fireEvent.click(checkbox);
+  expect(input.disabled).toBe(true);
+  fireEvent.click(checkbox);
+  expect(input.disabled).toBe(false);
+  expect(input.value).toBe(localValue);
+  fireEvent.click(screen.getByRole("button", { name: "Anuluj" }));
+  expect(vi.mocked(apiFetch).mock.calls.some(([, options]) => options?.method === "PATCH")).toBe(false);
+});
+
+it("adds, changes and clears the group deadline without creating assignments", async () => {
+  let deadline: string | null = null;
+  vi.mocked(apiFetch).mockImplementation(async (_path, options) => {
+    if (options?.method === "PATCH") {
+      deadline = JSON.parse(options.body as string).deadline;
+      return new Response(null, { status: 204 });
+    }
+    return Response.json([{ ...task, deadline }]);
+  });
+  render(<GroupTaskAssignments groupId={7} revision={0} onAssign={vi.fn()} />);
+  for (const value of ["2030-11-20T23:59", "2031-11-20T23:59", ""]) {
+    fireEvent.click(await screen.findByRole("button", { name: "Edytuj termin: Pętle" }));
+    const dialog = within(screen.getByRole("dialog"));
+    const checkbox = dialog.getByRole("checkbox", { name: "Bez terminu (usuń termin)" }) as HTMLInputElement;
+    if (checkbox.checked === Boolean(value)) fireEvent.click(checkbox);
+    if (value) fireEvent.change(dialog.getByLabelText("Termin wykonania"), { target: { value } });
+    fireEvent.click(dialog.getByRole("button", { name: "Zapisz termin" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(deadline).toBe(value ? new Date(value).toISOString() : null);
+    await screen.findByRole("heading", { name: "Pętle" });
+  }
+  const patches = vi.mocked(apiFetch).mock.calls.filter(([, options]) => options?.method === "PATCH");
+  expect(patches).toHaveLength(3);
+  expect(patches.every(([path]) => path === "/teacher/groups/7/task-assignments/15")).toBe(true);
+  expect(vi.mocked(apiFetch).mock.calls.some(([, options]) => options?.method === "POST")).toBe(false);
+});
+
+it("explains mixed deadlines and keeps the editor open on failure", async () => {
+  vi.mocked(apiFetch).mockResolvedValue(Response.json([{ ...task, deadlines_differ: true }]));
+  render(<GroupTaskAssignments groupId={7} revision={0} onAssign={vi.fn()} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Edytuj termin: Pętle" }));
+  expect(screen.getByText(/Uczniowie mają różne terminy/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("checkbox", { name: "Bez terminu (usuń termin)" }));
+  vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({}, { status: 500 }));
+  fireEvent.click(screen.getByRole("button", { name: "Zapisz termin" }));
+  expect(await within(screen.getByRole("dialog")).findByRole("alert")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Anuluj" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
 
 it("lists assigned tasks and cancels removal without a request", async () => {
   render(<GroupTaskAssignments groupId={7} revision={0} onAssign={vi.fn()} />);

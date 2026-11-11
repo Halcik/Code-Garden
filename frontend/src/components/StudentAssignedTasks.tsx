@@ -28,7 +28,7 @@ export default function StudentAssignedTasks({ filters }: { filters: CatalogFilt
         if (reason instanceof TasksApiError && [401, 403].includes(reason.status)) retrySession();
       }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [filters.search, filters.topic, filters.difficulty, filters.task_type, filters.sort_by, filters.sort_order, filters.progress_status, offset, attempt, retrySession]);
+  }, [filters.search, filters.topic, filters.difficulty, filters.task_type, filters.sort_by, filters.sort_order, filters.progress_status, filters.overdue, offset, attempt, retrySession]);
   return <section className="student-assigned-section" aria-label="Przypisane zadania" aria-busy={loading}>
     <div className="student-section-heading"><div><h2>Zadania przypisane przez nauczyciela</h2></div></div>
     {loading ? <p className="admin-card admin-state" role="status">Ładowanie przypisanych zadań…</p>

@@ -1,8 +1,9 @@
+import DeadlinePicker from "./DeadlinePicker";
 import { useEffect, useRef, useState } from "react";
 import { listGroups, GroupsApiError } from "../../api/groups";
 import type { Group } from "../../api/groups";
 import type { StudentIdentity } from "../../api/groupInvitations";
-import { assignTaskToGroup, assignTaskToStudent, AssignmentsApiError, listTaskAssignments, revokeTaskAssignment, searchAssignmentStudents } from "../../api/taskAssignments";
+import { updateAssignmentDeadline, assignTaskToGroup, assignTaskToStudent, AssignmentsApiError, listTaskAssignments, revokeTaskAssignment, searchAssignmentStudents } from "../../api/taskAssignments";
 import type { TaskAssignment } from "../../api/taskAssignments";
 import { useAuth } from "../../auth/AuthProvider";
 import GroupDialog from "./GroupDialog";
@@ -14,6 +15,9 @@ export default function TaskAssignments({ taskId, available, onClose }: { taskId
   const [groups, setGroups] = useState<Group[]>([]);
   const [students, setStudents] = useState<StudentIdentity[]>([]);
   const [assignments, setAssignments] = useState<TaskAssignment[]>([]);
+  const [deadline, setDeadline] = useState("");
+  const [editing, setEditing] = useState<TaskAssignment | null>(null);
+  const [editDeadline, setEditDeadline] = useState("");
   const [query, setQuery] = useState("");
   const [studentId, setStudentId] = useState("");
   const [groupId, setGroupId] = useState("");
@@ -59,14 +63,24 @@ export default function TaskAssignments({ taskId, available, onClose }: { taskId
     setBusy(true); setError(""); setSuccess("");
     try {
       if (kind === "student") {
-        await assignTaskToStudent(taskId, Number(studentId), controller.signal);
+        await assignTaskToStudent(taskId, Number(studentId), controller.signal, deadline ? new Date(deadline).toISOString() : undefined);
         if (!controller.signal.aborted) setSuccess("Zadanie zostało przypisane uczniowi.");
       } else {
-        const result = await assignTaskToGroup(taskId, Number(groupId), controller.signal);
+        const result = await assignTaskToGroup(taskId, Number(groupId), controller.signal, deadline ? new Date(deadline).toISOString() : undefined);
         if (!controller.signal.aborted) setSuccess(`Przypisano zadanie: ${result.assigned_count} uczniów. Już przypisane: ${result.already_assigned_count}.`);
       }
       const rows = await listTaskAssignments(taskId, controller.signal);
       if (!controller.signal.aborted) setAssignments(rows);
+    } catch (reason) { if (!controller.signal.aborted) setError(message(reason)); }
+    finally { if (!controller.signal.aborted) setBusy(false); controller.abort(); }
+  }
+  async function saveDeadline() {
+    if (!editing || busy) return;
+    const controller = new AbortController(); mutation.current = controller;
+    setBusy(true); setError("");
+    try {
+      const row = await updateAssignmentDeadline(taskId, editing.id, editDeadline ? new Date(editDeadline).toISOString() : null, controller.signal);
+      if (!controller.signal.aborted) { setAssignments(previous => previous.map(item => item.id === row.id ? row : item)); setEditing(null); setSuccess("Zapisano termin przypisania."); }
     } catch (reason) { if (!controller.signal.aborted) setError(message(reason)); }
     finally { if (!controller.signal.aborted) setBusy(false); controller.abort(); }
   }
@@ -94,6 +108,7 @@ export default function TaskAssignments({ taskId, available, onClose }: { taskId
       {!available && <p>Przypisywać można zapisane, gotowe i niezarchiwizowane zadania.</p>}
       <fieldset className="group-form task-assignment-fields" disabled={!available || loading || busy}>
         <legend>Przypisz uczniowi</legend>
+        <DeadlinePicker label="Termin wykonania (opcjonalny)" value={deadline} onChange={setDeadline} />
         <label>Szukaj ucznia w swoich grupach<input maxLength={50} value={query} onChange={event => setQuery(event.target.value)} /></label>
         {searching && <p role="status">Wyszukiwanie uczniów…</p>}
         {searchError && <p role="alert">{searchError}</p>}
@@ -119,14 +134,22 @@ export default function TaskAssignments({ taskId, available, onClose }: { taskId
       {!loading && <><h3>Uczniowie z Twoimi przypisaniami <span className="muted">({new Set(assignments.map(row => row.student_id)).size})</span></h3>{assignments.length ?
         <div className="task-assignment-table-scroll" tabIndex={0} role="region" aria-label="Lista przypisań uczniów">
           <table className="task-assignment-table"><caption className="sr-only">Uczniowie z przypisanym zadaniem</caption>
-            <thead><tr><th scope="col">Uczeń</th><th scope="col">Źródło przypisania</th><th scope="col">Data</th><th scope="col">Akcje</th></tr></thead>
+            <thead><tr><th scope="col">Uczeń</th><th scope="col">Źródło przypisania</th><th scope="col">Data</th><th scope="col">Termin</th><th scope="col">Akcje</th></tr></thead>
             <tbody>{assignments.map(row => <tr key={row.id}><td className="task-assignment-login">{row.student_login}</td>
               <td>{row.group_name || (row.source_group_id ? `Usunięta grupa #${row.source_group_id}` : "Bezpośrednio")}</td>
               <td><time dateTime={row.created_at}>{new Date(row.created_at).toLocaleDateString("pl-PL")}</time></td>
+              <td>{row.deadline ? new Date(row.deadline).toLocaleString("pl-PL") : "Bez terminu"}<button type="button" disabled={busy} onClick={() => { setEditing(row); const date = row.deadline ? new Date(row.deadline) : null; setEditDeadline(date ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""); }} aria-label={`Edytuj termin: ${row.student_login}, źródło ${row.id}`}>Edytuj termin</button></td>
               <td><button type="button" className="admin-text-button" disabled={busy} onClick={() => setRevoking(row)} aria-label={`Cofnij przypisanie: ${row.student_login}, źródło ${row.id}`}>Cofnij</button></td>
             </tr>)}</tbody>
           </table>
         </div> : <p>Nie przypisano jeszcze zadania.</p>}</>}
+      {editing && <div className="group-form" role="group" aria-label="Edycja terminu">
+        <DeadlinePicker label="Termin przypisania" disabled={busy} value={editDeadline} onChange={setEditDeadline} />
+        <p>Puste pole usuwa termin tylko z wybranego źródła przypisania.</p>
+        <button type="button" disabled={busy} onClick={() => setEditDeadline("")}>Usuń termin</button>
+        <button type="button" disabled={busy} onClick={saveDeadline}>Zapisz termin</button>
+        <button type="button" disabled={busy} onClick={() => setEditing(null)}>Anuluj edycję terminu</button>
+      </div>}
       {revoking && <div className="group-form-note" role="group" aria-label="Potwierdź cofnięcie przypisania">
         <p>Cofnąć to źródło przypisania dla ucznia {revoking.student_login}? Pozostałe źródła oraz rozwiązania pozostaną zachowane.</p>
         <div className="group-actions"><button type="button" className="admin-button" disabled={busy} onClick={() => setRevoking(null)}>Anuluj cofnięcie</button>

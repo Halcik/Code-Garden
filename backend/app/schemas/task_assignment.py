@@ -1,19 +1,27 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 
 class AssignStudent(BaseModel):
     model_config = ConfigDict(extra="forbid")
     student_id: int = Field(gt=0)
+    deadline: AwareDatetime | None = None
 
 
 class AssignGroup(BaseModel):
     model_config = ConfigDict(extra="forbid")
     group_id: int = Field(gt=0)
+    deadline: AwareDatetime | None = None
+
+
+class AssignmentDeadlineUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    deadline: AwareDatetime | None
 
 
 class AssignmentResponse(BaseModel):
+    deadline: datetime | None
     id: int
     task_id: int
     student_id: int
@@ -37,6 +45,8 @@ class AssignmentStudent(BaseModel):
 
 
 class GroupTaskAssignment(BaseModel):
+    deadline: datetime | None = None
+    deadlines_differ: bool = False
     task_id: int
     title: str
     topic: str

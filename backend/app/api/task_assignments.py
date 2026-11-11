@@ -8,7 +8,7 @@ from app.models.task import Task
 from app.models.task_assignment import TaskAssignment
 from app.models.user import User, UserRole
 from app.schemas.task_assignment import (AssignGroup, AssignStudent, AssignmentResponse,
-                                        AssignmentStudent, GroupAssignmentResponse, GroupTaskAssignment)
+                                        AssignmentDeadlineUpdate, AssignmentStudent, GroupAssignmentResponse, GroupTaskAssignment)
 from app.services import task_assignments as service
 
 router = APIRouter(prefix="/teacher", tags=["task assignments"])
@@ -42,7 +42,7 @@ def list_assignments(task_id: int, response: Response,
 def create_assignment(task_id: int, payload: AssignStudent, response: Response,
         teacher: User = Depends(require_role(UserRole.TEACHER)), db: Session = Depends(get_db)):
     response.headers["Cache-Control"] = "no-store"
-    return service.assign_student(db, task_id, payload.student_id, teacher.id)
+    return service.assign_student(db, task_id, payload.student_id, teacher.id, payload.deadline)
 
 
 @router.post("/tasks/{task_id}/group-assignments", response_model=GroupAssignmentResponse,
@@ -50,7 +50,7 @@ def create_assignment(task_id: int, payload: AssignStudent, response: Response,
 def create_group_assignment(task_id: int, payload: AssignGroup, response: Response,
         teacher: User = Depends(require_role(UserRole.TEACHER)), db: Session = Depends(get_db)):
     response.headers["Cache-Control"] = "no-store"
-    return service.assign_group(db, task_id, payload.group_id, teacher.id)
+    return service.assign_group(db, task_id, payload.group_id, teacher.id, payload.deadline)
 
 
 @router.get("/groups/{group_id}/task-assignments", response_model=list[GroupTaskAssignment])
@@ -74,3 +74,21 @@ def revoke_task_assignment(task_id: int, assignment_id: int, response: Response,
         teacher: User = Depends(require_role(UserRole.TEACHER)), db: Session = Depends(get_db)):
     response.headers["Cache-Control"] = "no-store"
     service.revoke_assignment(db, task_id, assignment_id, teacher.id)
+
+
+@router.patch("/tasks/{task_id}/assignments/{assignment_id}", response_model=AssignmentResponse,
+              dependencies=[Depends(check_origin)])
+def update_assignment_deadline(task_id: int, assignment_id: int, payload: AssignmentDeadlineUpdate,
+        response: Response, teacher: User = Depends(require_role(UserRole.TEACHER)),
+        db: Session = Depends(get_db)):
+    response.headers["Cache-Control"] = "no-store"
+    return service.update_deadline(db, task_id, assignment_id, teacher.id, payload.deadline)
+
+
+@router.patch("/groups/{group_id}/task-assignments/{task_id}", status_code=204,
+              dependencies=[Depends(check_origin)])
+def update_group_assignment_deadline(group_id: int, task_id: int, payload: AssignmentDeadlineUpdate,
+        response: Response, teacher: User = Depends(require_role(UserRole.TEACHER)),
+        db: Session = Depends(get_db)):
+    response.headers["Cache-Control"] = "no-store"
+    service.update_group_deadline(db, group_id, task_id, teacher.id, payload.deadline)

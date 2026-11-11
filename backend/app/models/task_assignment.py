@@ -25,3 +25,5 @@ class TaskAssignment(Base):
     # merge its source with a direct assignment or another deleted group.
     source_group_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

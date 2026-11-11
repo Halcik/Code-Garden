@@ -46,6 +46,8 @@
 .group-form label { display: flex; flex-direction: column; gap: 6px; color: var(--color-text-secondary); font-size: 12px; }
 .group-form input, .group-form textarea, .group-form select { width: 100%; padding: 10px 12px; border: 1px solid var(--color-input-border); border-radius: 8px; background: var(--color-surface-muted); color: var(--color-text); font: inherit; }
 .group-form textarea { resize: vertical; min-height: 100px; }
+.group-deadline-checkbox { display: flex; align-items: center; gap: 8px; color: var(--color-text-secondary); font-size: 13px; cursor: pointer; }
+.group-deadline-checkbox input { width: 16px; height: 16px; margin: 0; accent-color: var(--color-button); }
 .group-delete { display: flex; flex-direction: column; gap: 16px; padding-top: 16px; border-top: 1px solid var(--color-border); }
 .group-detail-view { display: flex; flex-direction: column; gap: 24px; }
 .group-detail-heading { align-items: flex-end; }
