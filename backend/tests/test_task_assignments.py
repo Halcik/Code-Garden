@@ -491,6 +491,9 @@ def test_deadline_edit_permissions_and_sources(client, data):
     assert patch(direct, None).status_code == 403
     page = client.get("/student/tasks?overdue=true").json()
     assert page["total"] == 1 and page["items"][0]["deadline"].startswith("2020")
+    assert page["overdue_count"] == 1
+    assert client.get("/student/tasks?view=catalog&progress_status=COMPLETED").json()["overdue_count"] == 1
+    assert client.get("/student/tasks?view=catalog&offset=24").json()["overdue_count"] == 1
     login(client, data["outsider"])
     assert client.get("/student/tasks").json()["total"] == 0
     assert all(row["deadline"] is None for row in client.get("/student/tasks?view=catalog").json()["items"])
@@ -502,6 +505,7 @@ def test_deadline_edit_permissions_and_sources(client, data):
     login(client, data["student"])
     assert client.get("/student/tasks").json()["items"][0]["deadline"].startswith("2030")
     assert client.get("/student/tasks?overdue=true").json()["total"] == 0
+    assert client.get("/student/tasks?view=catalog").json()["overdue_count"] == 0
 
 
 def test_deadline_requires_timezone_and_explicit_patch(client, data):

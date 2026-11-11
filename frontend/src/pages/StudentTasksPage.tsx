@@ -68,7 +68,7 @@ export default function StudentTasksPage() {
         const count = data?.progress_counts?.[status as keyof typeof progressLabels];
         return <button key={status} type="button" aria-pressed={filters.progress_status === status} onClick={() => { setFilters(previous => ({ ...previous, progress_status: status, overdue: "", offset: 0 })); }}>{label}{(loading || (count != null && count > 0)) && <> <span className="student-view-count">{loading ? "…" : count}</span></>}</button>;
       })}
-      <button type="button" aria-pressed={filters.overdue === "true"} onClick={() => setFilters(previous => ({ ...previous, overdue: "true", progress_status: "", offset: 0 }))}>Po terminie</button>
+      <button type="button" aria-pressed={filters.overdue === "true"} onClick={() => setFilters(previous => ({ ...previous, overdue: "true", progress_status: "", offset: 0 }))}>Po terminie{(loading || (data?.overdue_count ?? 0) > 0) && <> <span className="student-view-count">{loading ? "…" : data?.overdue_count}</span></>}</button>
     </div>
     <div className="admin-card student-filters" role="search" aria-label="Filtry moich zadań">
       <label className="student-search">Wyszukaj<input maxLength={200} placeholder="Szukaj po tytule" value={search} onChange={event => setSearch(event.target.value)} /></label>

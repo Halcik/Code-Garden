@@ -18,6 +18,14 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+it.each([0, 3])("shows the overdue tab count only when positive: %s", async count => {
+  vi.mocked(apiFetch).mockImplementation(async path => Response.json({ items: path.includes("view=catalog") ? [task] : [], total: path.includes("view=catalog") ? 1 : 0, limit: 24, offset: 0, overdue_count: count }));
+  mount();
+  await screen.findByRole("link", { name: "Z katalogu" });
+  const button = screen.getByRole("button", { name: count ? "Po terminie 3" : "Po terminie" });
+  expect(button.querySelector(".student-view-count")?.textContent ?? null).toBe(count ? "3" : null);
+});
+
 it("filters overdue assignments without filtering the catalogue", async () => {
   mount();
   await screen.findByRole("link", { name: "Z katalogu" });

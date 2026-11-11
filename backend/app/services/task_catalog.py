@@ -21,6 +21,7 @@ def task_filters(*, search=None, topic=None, difficulty=None, task_type=None):
 
 
 def task_page(db, filters, *, sort_by, sort_order, limit, offset, student_id=None, progress_status=None, overdue=False, assignment_deadlines=False):
+    count_filters = list(filters)
     progress = None
     progress_counts = None
     if student_id is not None:
@@ -36,6 +37,8 @@ def task_page(db, filters, *, sort_by, sort_order, limit, offset, student_id=Non
         TaskAssignment.student_id == student_id, TaskAssignment.task_id == Task.id).correlate(Task).scalar_subquery()
     # Lateness is independent of progress; submitted work is no longer outstanding.
     is_overdue = (deadline < func.now()) & (progress != "COMPLETED") if progress is not None else None
+    overdue_count = db.scalar(select(func.count()).select_from(Task).where(
+        *count_filters, is_overdue)) if student_id is not None else 0
     if overdue and assignment_deadlines:
         filters = [*filters, is_overdue]
     column = getattr(Task, sort_by)
@@ -67,4 +70,5 @@ def task_page(db, filters, *, sort_by, sort_order, limit, offset, student_id=Non
     page = {"items": items, "total": total, "limit": limit, "offset": offset}
     if progress_counts is not None:
         page["progress_counts"] = progress_counts
+        page["overdue_count"] = overdue_count
     return page

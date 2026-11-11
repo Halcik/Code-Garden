@@ -70,6 +70,7 @@ class StudentProgressCounts(BaseModel):
 
 
 class StudentTaskList(BaseModel):
+    overdue_count: int = 0
     items: list[StudentCatalogTask]
     total: int
     limit: int
