@@ -22,6 +22,7 @@ beforeEach(() => {
     if (failure) return Response.json({}, { status: failure });
     if (path.includes("/students/")) return Response.json({ student, items: empty ? [] : [v2, v1] });
     if (path.includes("submissions?")) return Response.json({ items: empty ? [] : [{ student, submission_count: 2, latest_submission: v2 }], total: empty ? 0 : 1, limit: 25, offset: 0 });
+    if (path.endsWith("/task")) return Response.json({ id: 7, title: "Pętle", instructions: "Wypisz liczby od 1 do 10, używając pętli for." });
     if (path.startsWith("/teacher/submissions/")) {
       const version = path.endsWith("11") ? v2 : v1;
       return Response.json({ ...version, task_id: 7, total_hints: 3, student, source_code: `print(${version.version})`,

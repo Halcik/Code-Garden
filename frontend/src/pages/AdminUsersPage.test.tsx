@@ -29,6 +29,15 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+it("marks only Users as active in the shared administrator navigation", async () => {
+  render(<AdminUsersPage />); await screen.findByRole("table");
+  const navigation = screen.getByRole("navigation", { name: "Administracja" });
+  expect(navigation.className).toBe("admin-navigation");
+  expect(within(navigation).getByRole("link", { name: "Użytkownicy" }).getAttribute("aria-current")).toBe("page");
+  expect(within(navigation).getByRole("link", { name: "Recenzje" }).getAttribute("aria-current")).toBeNull();
+  expect(navigation.querySelectorAll("a.active")).toHaveLength(1);
+});
+
 it("searches across users, preserves filters and clears the search", async () => {
   render(<AdminUsersPage />);
   await screen.findByRole("table");

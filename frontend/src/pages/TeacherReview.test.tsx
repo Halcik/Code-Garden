@@ -24,6 +24,7 @@ async function server(path: string, options?: RequestInit): Promise<Response> {
     return Response.json(reviews[id]);
   }
   if (path.includes("/students/")) return Response.json({ student, items: versions.map(v => ({ ...v, review: reviews[v.id] })) });
+  if (path.endsWith("/task")) return Response.json({ id: currentTask(), title: "Zadanie", description: "", instructions: "Polecenie" });
   if (path.startsWith("/teacher/submissions/")) {
     const id = Number(path.split("/").at(-1));
     return Response.json({ ...versions.find(v => v.id === id), task_id: currentTask(), student,

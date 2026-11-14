@@ -18,13 +18,13 @@ function summary(test: TaskTest) {
   if (test.test_type === "FUNCTION") return `${c.function_name}(${JSON.stringify(c.arguments)}) → ${JSON.stringify(c.expected_result)}`;
   return `${rules[String(c.rule_type)]} ${c.expected_value || ""}`;
 }
-function TestRow({ test, disabled, edit, remove }: { test: TaskTest; disabled: boolean; edit: () => void; remove: () => void }) {
+function TestRow({ test, disabled, edit, remove, hideActions = false }: { test: TaskTest; disabled: boolean; edit: () => void; remove: () => void; hideActions?: boolean }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, style } = useSortableRow(test.id, disabled);
   return <div ref={setNodeRef} style={style} className="editor-test-row">
-    <button type="button" disabled={disabled} ref={setActivatorNodeRef} className="admin-text-button test-grip" aria-label={`Przenieś test ${test.name}`} {...attributes} {...listeners}><EditorIcon name="GripVertical" /></button>
+    {!hideActions && <button type="button" disabled={disabled} ref={setActivatorNodeRef} className="admin-text-button test-grip" aria-label={`Przenieś test ${test.name}`} {...attributes} {...listeners}><EditorIcon name="GripVertical" /></button>}
     <span className="editor-test-number">{test.position}</span><div className="editor-row-copy"><strong>{test.name}</strong><small>{types[test.test_type]}</small><code>{summary(test)}</code></div>
     <span className={`user-badge ${test.is_hidden ? "task-draft" : "status-active"}`}>{test.is_hidden ? "Ukryty" : "Publiczny"}</span>
-    <button type="button" className="admin-text-button" disabled={disabled} onClick={edit}>Edytuj</button><button type="button" className="admin-text-button" disabled={disabled} onClick={remove}>Usuń</button>
+    {!hideActions && <><button type="button" className="admin-text-button" disabled={disabled} onClick={edit}>Edytuj</button><button type="button" className="admin-text-button" disabled={disabled} onClick={remove}>Usuń</button></>}
   </div>;
 }
 function TestForm({ initial, busy, save, close }: { initial: TaskTest | null; busy: boolean; save: (data: TestInput) => void; close: () => void }) {
@@ -77,7 +77,7 @@ function TestForm({ initial, busy, save, close }: { initial: TaskTest | null; bu
     </fieldset>
   </form>;
 }
-export default function TaskTests({ taskId, readOnly, onDraftChange, onEditingChange }: { taskId?: string; readOnly: boolean; onDraftChange?: (items: TestInput[]) => void; onEditingChange?: (editing: boolean) => void }) {
+export default function TaskTests({ taskId, readOnly, onDraftChange, onEditingChange, providedTests, hideActions = false }: { taskId?: string; readOnly: boolean; onDraftChange?: (items: TestInput[]) => void; onEditingChange?: (editing: boolean) => void; providedTests?: TaskTest[]; hideActions?: boolean }) {
   const { retrySession } = useAuth();
   const [tests, setTests] = useState<TaskTest[]>([]);
   const [loading, setLoading] = useState(Boolean(taskId));
@@ -102,13 +102,14 @@ export default function TaskTests({ taskId, readOnly, onDraftChange, onEditingCh
   useEffect(() => {
     const controller = new AbortController(); generation.current++;
     setTests([]); setEditing(undefined); setError(""); setFailed(false);
+    if (providedTests !== undefined) { setTests(providedTests); setLoading(false); return; }
     if (!taskId) { setLoading(false); return; }
     setLoading(true);
     testRequest<TaskTest[]>(taskId, "", "GET", undefined, controller.signal).then(items => { if (!controller.signal.aborted) setTests(items); })
       .catch(reason => { if (!controller.signal.aborted) { report(reason); setFailed(true); } })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => { controller.abort(); generation.current++; };
-  }, [taskId, attempt]);
+  }, [taskId, attempt, providedTests]);
   useEffect(() => { if (readOnly) setEditing(undefined); }, [readOnly]);
   async function mutate(operation: () => Promise<unknown>) {
     if (!taskId || readOnly || loading || failed || lock.current) return;
@@ -139,13 +140,13 @@ export default function TaskTests({ taskId, readOnly, onDraftChange, onEditingCh
   }
   const disabled = readOnly || busy || loading || failed;
   return <section className="admin-card editor-card" aria-label="Przypadki testowe" aria-busy={busy || loading}>
-    <div className="editor-section-heading"><div><h2>Przypadki testowe</h2><p>Definiuj dane testów i przeciągaj za uchwyt, aby ustawić kolejność.</p></div><button type="button" className="admin-button" disabled={disabled || editing !== undefined} onClick={() => setEditing(null)}><EditorIcon name="Plus" />Dodaj przypadek testowy</button></div>
-    {!taskId && <p>Wpisy zostaną zapisane razem z zadaniem.</p>}
+    <div className="editor-section-heading"><div><h2>Przypadki testowe</h2><p>{readOnly ? "Definicje przypadków testowych · tylko do odczytu." : "Definiuj dane testów i przeciągaj za uchwyt, aby ustawić kolejność."}</p></div>{!hideActions && <button type="button" className="admin-button" disabled={disabled || editing !== undefined} onClick={() => setEditing(null)}><EditorIcon name="Plus" />Dodaj przypadek testowy</button>}</div>
+    {!taskId && providedTests === undefined && <p>Wpisy zostaną zapisane razem z zadaniem.</p>}
     {loading && <p role="status">Ładowanie testów…</p>}
     {error && <p role="alert" className="error-message">{error}</p>}
     {failed && <button type="button" className="admin-button" onClick={() => setAttempt(n => n + 1)}>Odśwież testy</button>}
     {editing !== undefined && !readOnly && <TestForm key={editing?.id ?? "new"} initial={editing} busy={busy || loading || failed} close={() => setEditing(undefined)} save={data => { if (!taskId) { draft.save(data, editing); setEditing(undefined); } else void mutate(() => testRequest(taskId, editing ? `/${editing.id}` : "", editing ? "PATCH" : "POST", data)); }} />}
     {!loading && !failed && !tests.length && <p>Brak przypadków testowych. Dodaj pierwszy test.</p>}
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={drop}><SortableContext items={tests.map(t => t.id)} strategy={verticalListSortingStrategy}><div className="editor-example-list">{tests.map(test => <TestRow key={test.id} test={test} disabled={disabled || editing !== undefined} edit={() => setEditing(test)} remove={() => { if (window.confirm(`Usunąć test „${test.name}”?`)) { if (!taskId) draft.remove(test.id); else void mutate(() => testRequest(taskId, `/${test.id}`, "DELETE")); } }} />)}</div></SortableContext></DndContext>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={drop}><SortableContext items={tests.map(t => t.id)} strategy={verticalListSortingStrategy}><div className="editor-example-list">{tests.map(test => <TestRow key={test.id} test={test} hideActions={hideActions} disabled={disabled || editing !== undefined} edit={() => setEditing(test)} remove={() => { if (window.confirm(`Usunąć test „${test.name}”?`)) { if (!taskId) draft.remove(test.id); else void mutate(() => testRequest(taskId, `/${test.id}`, "DELETE")); } }} />)}</div></SortableContext></DndContext>
   </section>;
 }

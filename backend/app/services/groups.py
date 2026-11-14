@@ -146,6 +146,6 @@ def public_student_groups(db: Session, student_id: int, items):
         .join(Task, Task.id == TaskAssignment.task_id)
         .where(TaskAssignment.student_id == student_id,
                TaskAssignment.group_id.in_([group.id for group in items]),
-               Task.status == TaskStatus.READY, Task.is_archived.is_(False))
+               Task.status != TaskStatus.DRAFT, Task.is_archived.is_(False))
         .group_by(TaskAssignment.group_id)).all()) if items else {}
     return [dict(**public_group(group), active_task_count=counts.get(group.id, 0)) for group in items]

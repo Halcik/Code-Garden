@@ -29,9 +29,12 @@ class TaskResponse(BaseModel):
     author_id: int
     created_at: datetime
     updated_at: datetime
+    publication_round: int = 0
+    publication_submitted_at: datetime | None = None
 
 
 class TaskList(BaseModel):
+    tab_counts: dict[str, int] = Field(default_factory=dict)
     items: list[TaskResponse]
     total: int
     limit: int
@@ -100,7 +103,7 @@ class TaskCreate(BaseModel):
     topic: str = Field(min_length=1, max_length=100)
     difficulty: TaskDifficulty
     task_type: TaskType
-    status: TaskStatus = TaskStatus.DRAFT
+    status: Literal[TaskStatus.DRAFT, TaskStatus.READY] = TaskStatus.DRAFT
     description: str = ""
     theory: str | None = None
     instructions: str | None = None
@@ -132,7 +135,7 @@ class TaskUpdate(BaseModel):
     topic: str | None = Field(default=None, min_length=1, max_length=100)
     difficulty: TaskDifficulty | None = None
     task_type: TaskType | None = None
-    status: TaskStatus | None = None
+    status: Literal[TaskStatus.DRAFT, TaskStatus.READY] | None = None
     description: str | None = None
     theory: str | None = None
     instructions: str | None = None

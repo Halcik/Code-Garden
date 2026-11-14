@@ -1,3 +1,5 @@
+import { AuthorPublicationHistory } from "./PublicationReviewsPage";
+import { submitPublication, withdrawPublication } from "../api/publication";
 import TaskHints from "../components/teacher/TaskHints";
 import TaskAssignments from "../components/teacher/TaskAssignments";
 import TaskTests from "../components/teacher/TaskTests";
@@ -31,6 +33,7 @@ export default function TaskFormPage() {
   const [success, setSuccess] = useState("");
   const [saving, setSaving] = useState(false);
   const [archived, setArchived] = useState(false);
+  const [publicationStarted, setPublicationStarted] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -40,6 +43,10 @@ export default function TaskFormPage() {
   const [editingHint, setEditingHint] = useState(false);
   const locked = useRef(false);
   const generation = useRef(0);
+  const publicationLocked = ["PENDING_TEACHER_REVIEW", "PENDING_ADMIN_REVIEW", "PUBLISHED"].includes(form.status);
+  const readOnly = archived || publicationLocked;
+  const hasUnsavedChanges = original !== null && Object.entries(original).some(([key, value]) =>
+    String(value ?? "") !== String(form[key as keyof Form] ?? ""));
   function message(reason: unknown) {
     if (reason instanceof TasksApiError && [401, 403].includes(reason.status)) retrySession();
     return reason instanceof Error ? reason.message : "Sprawdź połączenie i spróbuj ponownie.";
@@ -63,6 +70,7 @@ export default function TaskFormPage() {
     getTask(taskId, controller.signal).then(task => {
       if (controller.signal.aborted) return;
       setArchived(task.is_archived);
+      setPublicationStarted((task.publication_round ?? 0) > 0);
       const data: TaskInput = { python_version: task.python_version ?? "3.13", time_limit_seconds: task.time_limit_seconds ?? 2, memory_limit_mb: task.memory_limit_mb ?? 256, title: task.title, topic: task.topic, description: task.description, theory: task.theory ?? "", instructions: task.instructions ?? "", starter_code: task.starter_code ?? "", difficulty: task.difficulty,
         task_type: task.task_type, status: task.status, estimated_time_minutes: task.estimated_time_minutes };
       setOriginal(data); setForm({ ...data, time_limit_seconds: String(data.time_limit_seconds), memory_limit_mb: String(data.memory_limit_mb), theory: data.theory ?? "", instructions: data.instructions ?? "", starter_code: data.starter_code ?? "", estimated_time_minutes: data.estimated_time_minutes?.toString() ?? "" });
@@ -73,7 +81,7 @@ export default function TaskFormPage() {
   function change(key: keyof Form, value: string) { setForm(previous => ({ ...previous, [key]: value })); setSuccess(""); setError(""); }
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (locked.current || archived) return;
+    if (locked.current || readOnly) return;
     setError(""); setSuccess("");
     if (!taskId && (editingTest || editingHint)) {
       setError("Zapisz lub anuluj otwarty formularz testu albo podpowiedzi przed utworzeniem zadania."); return;
@@ -129,6 +137,16 @@ export default function TaskFormPage() {
     } catch (reason) { if (current === generation.current) setError(message(reason)); }
     finally { locked.current = false; setSaving(false); setArchiving(false); }
   }
+  async function changePublication() {
+    if (!taskId || archived || locked.current || hasUnsavedChanges) return;
+    locked.current = true; setSaving(true); setError("");
+    const current = generation.current;
+    try {
+      if (form.status === "PUBLISHED") await withdrawPublication(Number(taskId)); else await submitPublication(Number(taskId));
+      if (current === generation.current) setAttempt(n => n + 1);
+    } catch (reason) { if (current === generation.current) setError(message(reason)); }
+    finally { locked.current = false; setSaving(false); }
+  }
   const select = (key: "difficulty" | "task_type" | "status", label: string, values: Record<string, string>) =>
     <label>{label}<select required value={form[key]} onChange={event => change(key, event.target.value)}>
       <option value="" disabled>Wybierz…</option>{Object.entries(values).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
@@ -144,7 +162,7 @@ export default function TaskFormPage() {
       <div className="editor-header-actions"><PlaceholderButton icon="Eye">Podgląd</PlaceholderButton>
         <button type="button" className="admin-button primary" disabled={!taskId || loading || saving || Boolean(loadError)} title={!taskId ? "Najpierw zapisz zadanie" : undefined} onClick={() => setAssigning(true)}><EditorIcon name="Send" />Przypisz zadanie</button>
         {archived ? <button className="admin-button primary" type="button" disabled={saving} onClick={restore}>{saving ? "Przywracanie…" : "Przywróć"}</button>
-          : <button className="admin-button primary" form="task-basics-form" disabled={saving || loading || Boolean(loadError)} type="submit"><EditorIcon name="Save" />{saving ? "Zapisywanie…" : taskId ? "Zapisz zmiany" : "Utwórz zadanie"}</button>}
+          : <button className="admin-button primary" form="task-basics-form" disabled={saving || readOnly || loading || Boolean(loadError)} type="submit"><EditorIcon name="Save" />{saving ? "Zapisywanie…" : taskId ? "Zapisz zmiany" : "Utwórz zadanie"}</button>}
       </div>
     </div>
     {loading ? <p role="status" className="admin-card admin-state">Ładowanie zadania…</p>
@@ -156,7 +174,7 @@ export default function TaskFormPage() {
           <div className="editor-main-column">
             <form id="task-basics-form" className="admin-card editor-card" onSubmit={submit} noValidate aria-busy={saving}>
               <div className="editor-section-heading"><div><h2>Podstawowe informacje</h2><p>Informacje widoczne dla ucznia przed otwarciem zadania</p></div></div>
-              <fieldset disabled={saving || archived}>
+              <fieldset disabled={saving || readOnly}>
                 <label>Tytuł<input required maxLength={200} placeholder="Wpisz tytuł zadania" value={form.title} onChange={event => change("title", event.target.value)} /></label>
                 <ReviewRule />
                 <div className="editor-basics-grid">
@@ -165,12 +183,12 @@ export default function TaskFormPage() {
                   <label>Przewidywany czas (minuty)<input type="number" min={1} max={2147483647} step={1} placeholder="np. 20" value={form.estimated_time_minutes} onChange={event => change("estimated_time_minutes", event.target.value)} /></label>
                 </div>
                 <label>Krótki opis<textarea rows={3} placeholder="Dodaj krótki opis zadania" value={form.description} onChange={event => change("description", event.target.value)} /></label>
-                <div className="editor-basics-footer">{select("status", "Status", STATUSES)}<Link className="admin-button" to="/teacher/tasks">Anuluj</Link></div>
+                <div className="editor-basics-footer">{select("status", "Status", Object.fromEntries(Object.entries(STATUSES).filter(([key]) => ["DRAFT", "READY", form.status].includes(key))))}<Link className="admin-button" to="/teacher/tasks">Anuluj</Link></div>
               </fieldset>
             </form>
             <section className="admin-card editor-card" aria-label="Treści edukacyjne">
               <div className="editor-section-heading"><div><h2>Treści edukacyjne</h2><p>Teoria i szczegółowe wymagania zadania</p></div></div>
-              <fieldset disabled={saving || archived}>
+              <fieldset disabled={saving || readOnly}>
                 <label>Krótka teoria<textarea form="task-basics-form" rows={4} value={form.theory} onChange={event => change("theory", event.target.value)} /></label>
                 <label>Treść zadania<textarea form="task-basics-form" rows={5} placeholder="Dodaj polecenie i szczegółowe wymagania zadania" value={form.instructions} onChange={event => change("instructions", event.target.value)} /></label>
               </fieldset>
@@ -178,16 +196,16 @@ export default function TaskFormPage() {
             <section className="admin-card editor-card" aria-label="Kod startowy">
               <div className="editor-section-heading"><div><h2>Kod startowy</h2><p>Początkowa zawartość edytora ucznia · Python</p></div></div>
               <Suspense fallback={<p role="status">Ładowanie edytora kodu…</p>}>
-                <PythonCodeEditor value={form.starter_code} onChange={value => change("starter_code", value)} readOnly={saving || archived} />
+                <PythonCodeEditor value={form.starter_code} onChange={value => change("starter_code", value)} readOnly={saving || readOnly} />
               </Suspense>
             </section>
-            <TaskTests key={taskId || "new"} taskId={taskId} readOnly={saving || archived} onDraftChange={setDraftTests} onEditingChange={setEditingTest} />
-            <TaskHints key={`hints-${taskId || "new"}`} taskId={taskId} readOnly={saving || archived} onDraftChange={setDraftHints} onEditingChange={setEditingHint} />
+            <TaskTests key={taskId || "new"} taskId={taskId} readOnly={saving || readOnly} onDraftChange={setDraftTests} onEditingChange={setEditingTest} />
+            <TaskHints key={`hints-${taskId || "new"}`} taskId={taskId} readOnly={saving || readOnly} onDraftChange={setDraftHints} onEditingChange={setEditingHint} />
           </div>
           <aside className="editor-settings-column" aria-label="Ustawienia zadania"><TaskSettingsPlaceholders execution={<section className="admin-card editor-card" aria-label="Ustawienia wykonania">
             <h2>Ustawienia wykonania</h2>
             {environmentError && <p role="alert">{environmentError}<button type="button" onClick={() => setAttempt(value => value + 1)}>Spróbuj ponownie</button></p>}
-            <fieldset disabled={saving || archived}>
+            <fieldset disabled={saving || readOnly}>
               <label>Środowisko<select form="task-basics-form" value={form.python_version} onChange={event => change("python_version", event.target.value)}>
                 {!environments.includes(form.python_version) && <option value={form.python_version}>Python {form.python_version}</option>}
                 {environments.map(version => <option key={version} value={version}>Python {version}</option>)}
@@ -195,9 +213,16 @@ export default function TaskFormPage() {
               <label>Limit czasu (s)<input form="task-basics-form" type="number" min="0.01" max="15" step="0.01" value={form.time_limit_seconds} onChange={event => change("time_limit_seconds", event.target.value)} /></label>
               <label>Limit pamięci (MB)<input form="task-basics-form" type="number" min="1" max="512" step="1" value={form.memory_limit_mb} onChange={event => change("memory_limit_mb", event.target.value)} /></label>
             </fieldset>
-          </section>} onArchive={taskId && !archived ? archive : undefined} busy={saving} archiving={archiving} /></aside>
+          </section>} publicationAvailable={Boolean(taskId)} publicationActions={taskId && <>
+            <p>{STATUSES[form.status as keyof typeof STATUSES]}</p>
+            {publicationLocked && <p>Treść jest tylko do odczytu.{form.status === "PUBLISHED" && " Wycofaj zadanie do edycji przed wprowadzeniem zmian."}</p>}
+            {hasUnsavedChanges && !publicationLocked && <p>Zapisz zmiany przed zgłoszeniem do publikacji.</p>}
+            {!archived && !["PENDING_TEACHER_REVIEW", "PENDING_ADMIN_REVIEW"].includes(form.status) && <button className="admin-button primary" type="button" disabled={saving || hasUnsavedChanges || !["READY", "CHANGES_REQUESTED_BY_TEACHER", "CHANGES_REQUESTED_BY_ADMIN", "PUBLISHED"].includes(form.status)} onClick={changePublication}>
+              <EditorIcon name="Send" />{form.status === "PUBLISHED" ? "Wycofaj do edycji" : "Zgłoś do publikacji"}
+            </button>}
+          </>} publicationHistory={taskId && publicationStarted ? <AuthorPublicationHistory taskId={taskId} revision={attempt} /> : undefined} onArchive={taskId && !archived ? archive : undefined} busy={saving} archiving={archiving} /></aside>
         </div>
-        {taskId && assigning && <TaskAssignments key={`assignments-${taskId}`} taskId={taskId} available={!saving && !archived && original?.status === "READY"} onClose={() => setAssigning(false)} />}
+        {taskId && assigning && <TaskAssignments key={`assignments-${taskId}`} taskId={taskId} available={!saving && !archived && ["READY", "PUBLISHED"].includes(original?.status ?? "")} onClose={() => setAssigning(false)} />}
       </>}
   </div>;
 }

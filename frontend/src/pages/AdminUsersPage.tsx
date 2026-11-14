@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
+import AdminNavigation from "../components/admin/AdminNavigation";
 import type { User } from "../api/auth";
 import { AdminApiError, adminErrorMessage, changeUserStatus, getUser, listUsers, updateUser } from "../api/admin";
 import type { UserAction, UserFilters, UserList } from "../api/admin";
@@ -108,7 +108,7 @@ export default function AdminUsersPage() {
   return <div className="admin-layout">
     <aside className="admin-sidebar">
       <div className="admin-brand"><DesignIcon name="CodeGardenLogo" /><strong>Code Garden</strong></div>
-      <nav aria-label="Administracja"><NavLink to="/admin" end><DesignIcon name="Users" />Użytkownicy</NavLink></nav>
+      <AdminNavigation />
       <div className="admin-sidebar-footer">
         <div className="admin-identity"><DesignIcon name="Avatar" /><div><strong>{actor?.login}</strong><span>Administrator</span></div></div>
         <LogoutButton />

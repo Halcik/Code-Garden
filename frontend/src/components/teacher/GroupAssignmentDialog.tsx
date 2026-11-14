@@ -28,7 +28,7 @@ export default function GroupAssignmentDialog({ group, onClose, onAssigned }: { 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError(""); setSelected("");
-    listTasks({ ...filters, archived: "false", topic: "", difficulty: "", status: "READY", sort_by: "title", sort_order: "asc" }, controller.signal)
+    listTasks({ ...filters, archived: "false", topic: "", difficulty: "", view: "assignable", status: "", sort_by: "title", sort_order: "asc" }, controller.signal)
       .then(result => { if (!controller.signal.aborted) setPage(result); })
       .catch(reason => { if (!controller.signal.aborted) { setPage(null); setError(message(reason)); } })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });

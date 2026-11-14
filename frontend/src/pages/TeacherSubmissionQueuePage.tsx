@@ -1,3 +1,4 @@
+import TabCount from "../components/TabCount";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { submissionQueue } from "../api/teacherSubmissions";
@@ -17,7 +18,7 @@ import "../styles/teacher-submissions.css";
 import { REVIEW_LABELS } from "../api/reviews";
 import type { ReviewStatus } from "../api/reviews";
 
-const initial = { q: "", task: "", sort: "newest", offset: 0, review_status: "PENDING" as ReviewStatus | "" };
+const initial = { scope: "all", q: "", task: "", sort: "newest", offset: 0, review_status: "PENDING" as ReviewStatus | "" };
 export default function TeacherSubmissionQueuePage() {
   const { theme } = useTheme();
   const [filters, setFilters] = useState(initial);
@@ -34,7 +35,7 @@ export default function TeacherSubmissionQueuePage() {
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [filters, retry]);
-  const change = (key: "q" | "task" | "sort", value: string) => setFilters(previous => ({ ...previous, [key]: value, offset: 0 }));
+  const change = (key: "q" | "task" | "sort" | "scope", value: string) => setFilters(previous => ({ ...previous, [key]: value, offset: 0 }));
   return <>
     <div className="admin-page-heading"><h1>Prace uczniów</h1><p>Przeglądaj formalnie wysłane rozwiązania uczniów i wyniki testów automatycznych.</p></div>
     <section className="submission-queue-metrics" aria-label="Podsumowanie prac uczniów">
@@ -47,13 +48,13 @@ export default function TeacherSubmissionQueuePage() {
     </section>
     <div className="admin-card teacher-tabs" role="group" aria-label="Kolejki prac uczniów">
       {([["PENDING", "Do przejrzenia"], ["ACCEPTED", "Zaakceptowane"], ["CHANGES_REQUESTED", "Do poprawy"], ["", "Wszystkie"]] as const).map(([value, label]) =>
-        <button key={value} aria-pressed={filters.review_status === value} onClick={() => setFilters(previous => ({ ...previous, review_status: value, offset: 0 }))}>{label}</button>)}
+        <button key={value} aria-pressed={filters.review_status === value} onClick={() => setFilters(previous => ({ ...previous, review_status: value, offset: 0 }))}>{label}<TabCount count={loading ? undefined : data?.review_counts?.[value || "ALL"]} /></button>)}
     </div>
     <section className="admin-card admin-filters submission-queue-filters" aria-label="Filtry prac uczniów">
       <label className="admin-search"><span className="sr-only">Szukaj ucznia lub zadania</span><input type="search" maxLength={200} placeholder="Szukaj ucznia lub zadania" value={filters.q} onChange={e => change("q", e.target.value)} /></label>
       <label><span className="sr-only">Grupa</span><select disabled title="Grupy nie są jeszcze dostępne"><option>Grupa: Wszystkie</option></select></label>
       <label><span className="sr-only">Zadanie</span><select value={filters.task} onChange={e => change("task", e.target.value)}><option value="">Zadanie: Wszystkie</option>{data?.tasks.map(task => <option key={task.id} value={task.id}>{task.title}</option>)}</select></label>
-      <label><span className="sr-only">Priorytet</span><select disabled title="Priorytety nie są jeszcze dostępne"><option>Priorytet: Dowolny</option></select></label>
+      <label><span className="sr-only">Opiekun recenzji</span><select value={filters.scope} onChange={e => change("scope", e.target.value)}><option value="all">Recenzje: Wszystkie</option><option value="available">Do podjęcia</option><option value="mine">Moje recenzje</option></select></label>
       <label><span className="sr-only">Sortowanie</span><select value={filters.sort} onChange={e => change("sort", e.target.value)}><option value="newest">Najnowsze</option><option value="oldest">Najstarsze</option></select></label>
     </section>
     <section className="admin-card users-list submission-queue-list" aria-label="Kolejka oceniania" aria-busy={loading}>
@@ -62,7 +63,7 @@ export default function TeacherSubmissionQueuePage() {
         : !data?.items.length ? <p className="admin-state" role="status">{filters.q || filters.task ? "Brak prac pasujących do filtrów." : "Żaden uczeń nie wysłał jeszcze rozwiązania Twoich zadań."}</p>
           : <div className="users-table-scroll"><table className="users-table submission-queue-table"><thead><tr>{["Uczeń", "Zadanie / temat / wysłano", "Testy automatyczne", "Rozwiązania / podpowiedzi", "Ocena / priorytet", "Akcja"].map(label => <th key={label}>{label}</th>)}</tr></thead>
             <tbody>{data.items.map(row => <tr key={`${row.task.id}:${row.student.id}`}><td><span className="submission-student"><img src={theme === "dark" ? darkAvatar : avatar} alt="" /><strong>{row.student.login}</strong></span></td>
-              <td><strong>{row.task.title}</strong><small>{row.task.topic} · <time dateTime={row.latest_submission.submitted_at}>{new Date(row.latest_submission.submitted_at).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })}</time></small></td>
+              <td><strong>{row.task.title}</strong><small>{row.latest_submission.is_catalog_submission ? "Samodzielnie z katalogu" : "Zadanie przypisane"}</small><small>{row.task.topic} · <time dateTime={row.latest_submission.submitted_at}>{new Date(row.latest_submission.submitted_at).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })}</time></small></td>
               <td><span className={`submission-chip ${row.latest_submission.all_passed ? "passed" : "failed"}`}>{row.latest_submission.passed_tests} / {row.latest_submission.total_tests} testów</span></td>
               <td>{row.submission_count} wersji<small>{row.used_hint_count} wykorzystanych podpowiedzi</small></td>
               <td><span className={`submission-chip ${row.latest_submission.review?.status === "ACCEPTED" ? "passed" : "failed"}`}>{REVIEW_LABELS[row.latest_submission.review?.status ?? "PENDING"]}</span><small>Priorytet: —</small></td>

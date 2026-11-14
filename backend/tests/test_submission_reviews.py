@@ -30,6 +30,7 @@ def test_review_lifecycle_and_student_feedback(client, work, actors, db_engine):
     assert one['review'] == dict(status='PENDING', feedback='', reviewed_at=None)
     assert next(item for item in client.get('/student/tasks').json()['items'] if item['id'] == task_id)['review_status'] == 'PENDING'
     login(client, actors, 'TEACHER')
+    assert client.post(f"/teacher/submissions/{one['id']}/claim").status_code == 200
     before = client.get(f'/teacher/submissions/{one["id"]}').json()
     response = client.put(review_url(one['id']), json={'decision': 'CHANGES_REQUESTED', 'feedback': '  Improve naming  '})
     assert response.status_code == 200 and response.headers['cache-control'] == 'no-store'
@@ -129,6 +130,7 @@ def test_notes_are_independent_of_task_submission_and_teacher(client, work, acto
     save(client, path)
     first_id = submit(client, path).json()['submission']['id']
     login(client, actors, 'TEACHER')
+    assert client.post(f'/teacher/submissions/{first_id}/claim').status_code == 200
     url = f'/teacher/students/{actors["STUDENT"]}/note'
     assert client.get(url).json()['content'] == ''
     first = client.put(url, json={'content': 'First note'}).json()
@@ -143,7 +145,7 @@ def test_notes_are_independent_of_task_submission_and_teacher(client, work, acto
         db.add(other); db.flush(); other_id = other.id
         other_task = Task(title='Other', topic='Python', task_type='STANDARD', difficulty='EASY', status='READY', instructions='x', author_id=other_id)
         db.add(other_task); db.flush()
-        db.add(Submission(student_id=actors['STUDENT'], task_id=other_task.id, version=1, source_code='other teacher', summary=summary))
+        db.add(Submission(student_id=actors['STUDENT'], task_id=other_task.id, version=1, reviewer_teacher_id=other_id, source_code='other teacher', summary=summary))
         db.commit()
     client.get(f'/teacher/submissions/{first_id}')
     assert client.get(url).json()['content'] == 'Updated note'
@@ -165,6 +167,7 @@ def test_queue_filters_use_review_of_latest_version(client, work, actors):
     save(client, path)
     submission_id = submit(client, path).json()['submission']['id']
     login(client, actors, 'TEACHER')
+    assert client.post(f'/teacher/submissions/{submission_id}/claim').status_code == 200
     base = f'/teacher/submissions?task_id={task_id}&review_status='
     assert client.get(base + 'PENDING').json()['total'] == 1
     assert client.get(base + 'ACCEPTED').json()['total'] == 0
@@ -187,6 +190,7 @@ def test_teacher_can_accept_failed_tests_without_changing_them(client, work, act
     submission = submit(client, path).json()['submission']
     assert submission['all_passed'] is False and submission['passed_tests'] == 0
     login(client, actors, 'TEACHER')
+    assert client.post(f"/teacher/submissions/{submission['id']}/claim").status_code == 200
     assert client.put(review_url(submission['id']), json={'decision': 'ACCEPTED'}).status_code == 200
     login(client, actors, 'STUDENT')
     draft = client.get(path + '/draft').json()
@@ -200,6 +204,7 @@ def test_concurrent_upserts_and_constraints(client, work, actors, db_engine):
     submission_id = submit(client, path).json()['submission']['id']
     login(client, actors, 'TEACHER')
     url = f'/teacher/students/{actors["STUDENT"]}/note'
+    assert client.post(f'/teacher/submissions/{submission_id}/claim').status_code == 200
     with ThreadPoolExecutor(max_workers=2) as pool:
         assert all(r.status_code == 200 for r in pool.map(lambda _: client.put(review_url(submission_id), json={'decision': 'ACCEPTED'}), range(2)))
         assert all(r.status_code == 200 for r in pool.map(lambda n: client.put(url, json={'content': str(n)}), range(2)))

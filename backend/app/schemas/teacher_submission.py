@@ -4,6 +4,8 @@ from app.schemas.review import ReviewResponse
 
 
 class SubmissionSummary(BaseModel):
+    reviewer_teacher_id: int | None = None
+    is_catalog_submission: bool = False
     id: int
     version: int
     submitted_at: datetime
@@ -72,6 +74,7 @@ class QueueItem(StudentSubmissions):
 
 
 class SubmissionQueue(BaseModel):
+    review_counts: dict[str, int] = Field(default_factory=dict)
     items: list[QueueItem]
     total: int
     limit: int

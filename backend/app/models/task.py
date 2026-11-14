@@ -25,6 +25,11 @@ class TaskType(str, enum.Enum):
 class TaskStatus(str, enum.Enum):
     DRAFT = "DRAFT"
     READY = "READY"
+    PENDING_TEACHER_REVIEW = "PENDING_TEACHER_REVIEW"
+    CHANGES_REQUESTED_BY_TEACHER = "CHANGES_REQUESTED_BY_TEACHER"
+    PENDING_ADMIN_REVIEW = "PENDING_ADMIN_REVIEW"
+    CHANGES_REQUESTED_BY_ADMIN = "CHANGES_REQUESTED_BY_ADMIN"
+    PUBLISHED = "PUBLISHED"
 
 
 class Task(Base):
@@ -38,6 +43,8 @@ class Task(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    publication_round: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    publication_submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     theory: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

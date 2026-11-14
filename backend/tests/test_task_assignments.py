@@ -167,15 +167,18 @@ def test_student_only_sees_own_assigned_tasks(client, data):
     assert [item["id"] for item in page["items"]] == [data["task"]]
     assert page["progress_counts"] == {"NOT_STARTED": 1, "IN_PROGRESS": 0, "COMPLETED": 0}
     assert client.get(f"/student/tasks/{data['task']}").status_code == 200
-    assert client.get(f"/student/tasks/{data['other_task']}").status_code == 200
+    assert client.get(f"/student/tasks/{data['other_task']}").status_code == 404
 
 
-def test_catalogue_includes_unassigned_ready_tasks_and_keeps_practice_private(client, data, db_engine):
+def test_catalogue_requires_published_and_keeps_practice_private(client, data, db_engine):
     assert assign(client, data).status_code == 201
     login(client, data["outsider"])
     assert client.get("/student/tasks?view=assigned").json()["items"] == []
     with Session(db_engine) as db:
         topic = db.get(Task, data["task"]).topic
+        for name in ("task", "other_task", "second_task"):
+            db.get(Task, data[name]).status = TaskStatus.PUBLISHED
+        db.commit()
     page = client.get("/student/tasks", params={"view": "catalog", "topic": topic}).json()
     assert {item["id"] for item in page["items"]} == {data["task"], data["other_task"], data["second_task"]}
     assert client.get(f"/student/tasks/{data['task']}").status_code == 200
@@ -492,8 +495,8 @@ def test_deadline_edit_permissions_and_sources(client, data):
     page = client.get("/student/tasks?overdue=true").json()
     assert page["total"] == 1 and page["items"][0]["deadline"].startswith("2020")
     assert page["overdue_count"] == 1
-    assert client.get("/student/tasks?view=catalog&progress_status=COMPLETED").json()["overdue_count"] == 1
-    assert client.get("/student/tasks?view=catalog&offset=24").json()["overdue_count"] == 1
+    assert client.get("/student/tasks?view=catalog&progress_status=COMPLETED").json()["overdue_count"] == 0
+    assert client.get("/student/tasks?view=catalog&offset=24").json()["overdue_count"] == 0
     login(client, data["outsider"])
     assert client.get("/student/tasks").json()["total"] == 0
     assert all(row["deadline"] is None for row in client.get("/student/tasks?view=catalog").json()["items"])

@@ -1,10 +1,34 @@
-from sqlalchemy import case, func, select
+from sqlalchemy import and_, case, func, or_, select
 
 from app.models.task_assignment import TaskAssignment
-from app.models.task import Task
+from app.models.task import Task, TaskStatus
 from app.models.solution import SolutionDraft, Submission
 from app.models.review import SubmissionReview
 from app.schemas.task import StudentTaskResponse
+
+
+def teacher_visible_task_filter(teacher_id):
+    return or_(Task.author_id == teacher_id,
+               and_(Task.status == TaskStatus.PUBLISHED, Task.is_archived.is_(False)))
+
+
+def teacher_task_tab_counts(db, teacher_id, filters):
+    own = Task.author_id == teacher_id
+    active = Task.is_archived.is_(False)
+    assigned = select(TaskAssignment.id).where(TaskAssignment.task_id == Task.id,
+        TaskAssignment.assigned_by_teacher_id == teacher_id).correlate(Task).exists()
+    conditions = {
+        "OWN": own,
+        "ASSIGNED": assigned,
+        "DRAFT": and_(own, active, Task.status == TaskStatus.DRAFT),
+        "PUBLIC": and_(active, Task.status == TaskStatus.PUBLISHED),
+        "IN_REVIEW": and_(own, active, Task.status.in_([
+            TaskStatus.PENDING_TEACHER_REVIEW, TaskStatus.PENDING_ADMIN_REVIEW])),
+        "ARCHIVED": and_(own, Task.is_archived.is_(True)),
+    }
+    return dict(db.execute(select(func.count().label("ALL"), *[
+        func.count().filter(condition).label(key) for key, condition in conditions.items()
+    ]).select_from(Task).where(teacher_visible_task_filter(teacher_id), *filters)).mappings().one())
 
 
 def task_filters(*, search=None, topic=None, difficulty=None, task_type=None):
