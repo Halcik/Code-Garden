@@ -13,7 +13,7 @@ from app.main import app
 from app.models.group import StudentGroup
 from app.models.task import Task, TaskStatus
 from app.models.task_assignment import TaskAssignment
-from app.models.solution import SolutionDraft, Submission
+from app.models.solution import SolutionDraft, Submission, SolutionTestResult
 from app.models.publication import PublicationReview
 from app.models.review import SubmissionReview
 from app.models.user import User, UserRole, TeacherApproval, AccountStatus
@@ -361,3 +361,113 @@ def test_concurrent_publication_decisions_are_not_overwritten(client, people, db
         assert sorted(pool.map(review, [("a", "ACCEPTED"), ("b", "CHANGES_REQUESTED")])) == [200, 409]
     with Session(db_engine) as db:
         assert db.scalar(select(func.count()).select_from(PublicationReview).where(PublicationReview.task_id == task_id)) == 1
+
+
+@pytest.fixture
+def private_publication_history(client, people):
+    task_id = new_task(client, people)
+    base = f"/teacher/tasks/{task_id}"
+    tests = [
+        dict(name="Visible example", test_type="INPUT_OUTPUT", is_hidden=False,
+             config=dict(input_data="PUBLIC_INPUT", expected_output="VISIBLE_EXPECTED")),
+        dict(name="HIDDEN_NAME_SENTINEL", test_type="INPUT_OUTPUT", is_hidden=True,
+             config=dict(input_data="HIDDEN_CONFIG_INPUT", expected_output="SECRET_EXPECTED")),
+    ]
+    for test in tests:
+        assert client.post(base + "/tests", json=test).status_code == 201
+    assert client.post(base + "/hints", json={"title": "Hint", "content": "Reveal this hint explicitly"}).status_code == 201
+    comments = []
+
+    def record(actor, stage, round, decision, comment):
+        login(client, people, actor)
+        response = client.post(f"/{stage}/publication-reviews/{task_id}", json=dict(
+            publication_round=round, decision=decision, comment=comment))
+        assert response.status_code == 200, response.text
+        comments.append(comment)
+
+    assert client.post(base + "/publication").status_code == 200
+    record("a", "teacher", 1, "CHANGES_REQUESTED", "PRIVATE_TEACHER_CORRECTION")
+    login(client, people, "author"); assert client.post(base + "/publication").status_code == 200
+    login(client, people, "a")
+    # An eligible independent teacher can inspect the history at this stage.
+    assert client.get(f"/publication/tasks/{task_id}").json()["history"][0]["comment"] == comments[0]
+    record("a", "teacher", 2, "ACCEPTED", "PRIVATE_TEACHER_APPROVAL_R2")
+    login(client, people, "admin")
+    assert len(client.get(f"/publication/tasks/{task_id}").json()["history"]) == 2
+    record("admin", "admin", 2, "CHANGES_REQUESTED", "PRIVATE_ADMIN_CORRECTION")
+    login(client, people, "author"); assert client.post(base + "/publication").status_code == 200
+    login(client, people, "a")
+    assert client.get(f"/publication/tasks/{task_id}").json()["history"][-1]["comment"] == "PRIVATE_ADMIN_CORRECTION"
+    record("a", "teacher", 3, "ACCEPTED", "PRIVATE_TEACHER_APPROVAL_R3")
+    record("admin", "admin", 3, "ACCEPTED", "PRIVATE_ADMIN_APPROVAL")
+    return task_id, tests, comments
+
+
+def test_published_task_view_hides_internal_history_from_foreign_teacher(client, people, private_publication_history):
+    task_id, tests, comments = private_publication_history
+    for actor in ("b", "a", "admin"):
+        # Neither catalogue access nor having reviewed an earlier stage grants
+        # continued access to the internal history of a published task.
+        login(client, people, actor)
+        response = client.get(f"/publication/tasks/{task_id}")
+        assert response.status_code == 200 and response.headers["cache-control"] == "no-store"
+        data = response.json()
+        assert data["task"]["status"] == "PUBLISHED" and data["history"] == []
+        assert data["task"]["instructions"] == "Print a number"
+        assert data["task"]["starter_code"] == "print(1)"
+        assert [test["config"] for test in data["tests"]] == [test["config"] for test in tests]
+        assert data["tests"][1]["is_hidden"] is True
+        assert data["hints"][0]["content"] == "Reveal this hint explicitly"
+        for comment in comments:
+            assert comment not in response.text
+        for private_field in ("reviewer_id", "reviewer_login", '"publication_a"', '"publication_admin"'):
+            assert private_field not in response.text
+    login(client, people, "author")
+    history = client.get(f"/publication/tasks/{task_id}").json()["history"]
+    assert [item["comment"] for item in history] == comments
+    assert [item["publication_round"] for item in history] == [1, 2, 2, 3, 3]
+
+
+def test_published_task_student_api_redacts_hidden_configs_and_publication_history(
+        client, people, private_publication_history, db_engine):
+    task_id, _, comments = private_publication_history
+    login(client, people, "student")
+    path = f"/student/tasks/{task_id}"
+    detail = client.get(path)
+    assert detail.status_code == 200
+    assert set(detail.json()) == {"id", "title", "description", "topic", "difficulty", "task_type",
+                                  "estimated_time_minutes", "theory", "instructions", "starter_code"}
+    for endpoint, status in [(f"/publication/tasks/{task_id}", 404),
+                             (f"/teacher/tasks/{task_id}/tests", 403), (path + "/tests", 404)]:
+        assert client.get(endpoint).status_code == status
+    hints = client.get(path + "/hints")
+    assert hints.json() == {"total": 1, "revealed": []}
+    assert client.get(path + "/hints/1").status_code == 404
+    runner = SimpleNamespace(execution_deadline=lambda cpu: 10, run_code=AsyncMock(side_effect=lambda **kwargs: dict(
+        status="completed", stdout="VISIBLE_EXPECTED" if kwargs["stdin"] == "PUBLIC_INPUT" else "HIDDEN_RUNTIME_OUTPUT")))
+    app.dependency_overrides[get_judge0_service] = lambda: runner
+    try:
+        saved = client.put(path + "/draft", json={"source_code": "print('VISIBLE_EXPECTED')"})
+        assert saved.status_code == 200
+        checked = client.post(path + "/check", json={"source_code": "print('VISIBLE_EXPECTED')", "revision": saved.json()["revision"]})
+        assert checked.status_code == 200
+        hidden = checked.json()["results"][1]
+        assert hidden["is_public"] is False and "details" not in hidden
+        submitted = client.post(path + "/submissions", json={"revision": saved.json()["revision"]})
+        assert submitted.status_code == 201
+        draft = client.get(path + "/draft")
+        assert "details" not in draft.json()["last_check"]["results"][1]
+        assert draft.json()["last_check"]["results"][0]["details"]["config"]["expected_output"] == "VISIBLE_EXPECTED"
+        for response in (detail, hints, saved, checked, submitted, draft,
+                         client.get("/student/tasks?view=catalog")):
+            for secret in ["HIDDEN_NAME_SENTINEL", "HIDDEN_CONFIG_INPUT", "SECRET_EXPECTED", "HIDDEN_RUNTIME_OUTPUT", *comments]:
+                assert secret not in response.text
+            assert "reviewer_login" not in response.text and "publication_round" not in response.text
+        with Session(db_engine) as db:
+            snapshot = db.scalar(select(SolutionTestResult).where(
+                SolutionTestResult.submission_id == submitted.json()["submission"]["id"], SolutionTestResult.number == 2))
+            assert snapshot.definition["config"]["expected_output"] == "SECRET_EXPECTED"
+            assert snapshot.definition["teacher_result"]["details"]["actual_output"] == "HIDDEN_RUNTIME_OUTPUT"
+            assert "details" not in snapshot.student_result
+    finally:
+        app.dependency_overrides.pop(get_judge0_service, None)

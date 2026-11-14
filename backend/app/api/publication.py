@@ -91,12 +91,17 @@ def detail(task_id: int, response: Response, user: User = Depends(require_active
     task = db.get(Task, task_id)
     if task is None or user.role not in (UserRole.TEACHER, UserRole.ADMIN):
         raise HTTPException(404, "Task not found")
-    # Authors see their history at any stage; reviewers see the current queue.
-    if task.author_id != user.id and not (not task.is_archived and (
-            task.status == stage_status(user) or task.status == TaskStatus.PUBLISHED)):
+    is_author = task.author_id == user.id
+    is_stage_reviewer = not task.is_archived and task.status == stage_status(user)
+    is_public = not task.is_archived and task.status == TaskStatus.PUBLISHED
+    if not (is_author or is_stage_reviewer or is_public):
         raise HTTPException(404, "Task not found")
-    history = db.execute(select(PublicationReview, User.login).join(User, User.id == PublicationReview.reviewer_id)
-        .where(PublicationReview.task_id == task_id).order_by(PublicationReview.id)).all()
+    # Public task content does not grant access to internal reviewer identities,
+    # rounds or comments. Do not even fetch these for a catalogue-only reader.
+    history = []
+    if is_author or is_stage_reviewer:
+        history = db.execute(select(PublicationReview, User.login).join(User, User.id == PublicationReview.reviewer_id)
+            .where(PublicationReview.task_id == task_id).order_by(PublicationReview.id)).all()
     return dict(task=TaskResponse.model_validate(task), author_login=task.author.login,
         tests=[TaskTestResponse.model_validate(t) for t in task.tests],
         hints=[TaskHintResponse.model_validate(h) for h in task.hints],
