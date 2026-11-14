@@ -1,11 +1,12 @@
-"""Read-only access to formal snapshots, scoped to the task's owner."""
+"""Formal snapshots scoped to assignment grants or the teacher who claimed review."""
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select, func, or_
 from typing import Literal
 from sqlalchemy.orm import Session, load_only
 
 from app.api.dependencies import require_role
-from app.api.teacher import owned_task
+from app.services.submission_access import submission_access
+from app.schemas.task import TaskResponse
 from app.db.session import get_db
 from app.models.solution import Submission, SubmissionUsedHint, SolutionTestResult
 from app.models.task import Task, TaskHint
@@ -19,6 +20,13 @@ router = APIRouter(prefix="/teacher", tags=["teacher submissions"])
 teacher = require_role(UserRole.TEACHER)
 
 
+def ensure_submission_task(db, task_id, teacher_id):
+    task = db.get(Task, task_id)
+    grant = db.scalar(select(Submission.id).where(Submission.task_id == task_id, submission_access(teacher_id)).limit(1))
+    if task is None or (task.author_id != teacher_id and grant is None):
+        raise HTTPException(404, "Task not found")
+
+
 def student_data(user):
     return dict(id=user.id, login=user.login, status=user.status)
 
@@ -26,14 +34,15 @@ def student_data(user):
 @router.get("/submissions", response_model=SubmissionQueue)
 def queue(response: Response, q: str = Query("", max_length=200), task_id: int | None = None,
           review_status: Literal["PENDING", "ACCEPTED", "CHANGES_REQUESTED"] | None = None,
+          scope: Literal["all", "available", "mine"] = "all",
           sort: Literal["newest", "oldest"] = "newest", limit: int = Query(25, ge=1, le=100),
           offset: int = Query(0, ge=0), author: User = Depends(teacher), db: Session = Depends(get_db)):
     response.headers["Cache-Control"] = "no-store"
     if task_id is not None:
-        owned_task(db, task_id, author.id)
+        ensure_submission_task(db, task_id, author.id)
     grouped = select(Submission.task_id.label("task_id"), Submission.student_id.label("student_id"),
         func.count().label("count"), func.max(Submission.version).label("version")).join(
-            Task, Task.id == Submission.task_id).where(Task.author_id == author.id).group_by(
+            Task, Task.id == Submission.task_id).where(submission_access(author.id)).group_by(
                 Submission.task_id, Submission.student_id).subquery()
     hints = select(SubmissionUsedHint.submission_id.label("submission_id"),
         func.count().label("count")).group_by(SubmissionUsedHint.submission_id).subquery()
@@ -43,44 +52,53 @@ def queue(response: Response, q: str = Query("", max_length=200), task_id: int |
         (Submission.version == grouped.c.version)).join(Task, Task.id == Submission.task_id).join(
             User, User.id == Submission.student_id).outerjoin(hints, hints.c.submission_id == Submission.id).outerjoin(
                 SubmissionReview, SubmissionReview.submission_id == Submission.id)
-    if review_status == "PENDING":
-        query = query.where(SubmissionReview.id.is_(None))
-    elif review_status:
-        query = query.where(SubmissionReview.decision == review_status)
+    if scope == "available":
+        query = query.where(Submission.reviewer_teacher_id.is_(None), SubmissionReview.id.is_(None))
+    elif scope == "mine":
+        query = query.where(Submission.reviewer_teacher_id == author.id)
     if task_id is not None:
         query = query.where(Task.id == task_id)
     if q.strip():
         query = query.where(or_(User.login.icontains(q.strip(), autoescape=True),
                                 Task.title.icontains(q.strip(), autoescape=True)))
+    # Count the latest visible student/task work before selecting a review tab.
+    statuses = query.with_only_columns(func.coalesce(SubmissionReview.decision, "PENDING").label("status")).subquery()
+    counts = dict.fromkeys(("PENDING", "ACCEPTED", "CHANGES_REQUESTED"), 0)
+    counts.update(dict(db.execute(select(statuses.c.status, func.count()).group_by(statuses.c.status)).all()))
+    counts["ALL"] = sum(counts.values())
+    if review_status == "PENDING":
+        query = query.where(SubmissionReview.id.is_(None))
+    elif review_status:
+        query = query.where(SubmissionReview.decision == review_status)
     total = db.scalar(select(func.count()).select_from(query.subquery()))
     ordering = (Submission.submitted_at.desc(), Submission.id.desc()) if sort == "newest" else (
         Submission.submitted_at.asc(), Submission.id.asc())
     rows = list(db.execute(query.options(load_only(User.id, User.login, User.status),
         load_only(Task.id, Task.title, Task.topic), load_only(Submission.id, Submission.version,
-            Submission.summary, Submission.submitted_at)).order_by(*ordering).limit(limit).offset(offset)))
+            Submission.summary, Submission.submitted_at, Submission.reviewer_teacher_id, Submission.is_catalog_submission)).order_by(*ordering).limit(limit).offset(offset)))
     reviews = review_map(db, [row[2].id for row in rows])
-    tasks = db.execute(select(Task.id, Task.title, Task.topic).where(Task.author_id == author.id).order_by(Task.title, Task.id))
+    tasks = db.execute(select(Task.id, Task.title, Task.topic).join(Submission, Submission.task_id == Task.id).where(submission_access(author.id)).distinct().order_by(Task.title, Task.id))
     return dict(items=[dict(student=student_data(user), task=dict(id=task.id, title=task.title, topic=task.topic),
         submission_count=count, used_hint_count=hint_count, latest_submission=public_submission(submission, reviews.get(submission.id)))
         for user, task, submission, count, hint_count in rows], total=total, limit=limit, offset=offset,
-        tasks=[dict(id=t.id, title=t.title, topic=t.topic) for t in tasks])
+        tasks=[dict(id=t.id, title=t.title, topic=t.topic) for t in tasks], review_counts=counts)
 
 
 @router.get("/tasks/{task_id}/submissions", response_model=SubmissionPage)
 def students(task_id: int, response: Response, limit: int = Query(25, ge=1, le=100),
              offset: int = Query(0, ge=0), author: User = Depends(teacher), db: Session = Depends(get_db)):
     response.headers["Cache-Control"] = "no-store"
-    owned_task(db, task_id, author.id)
+    ensure_submission_task(db, task_id, author.id)
     grouped = select(Submission.student_id.label("student_id"),
         func.count().label("count"), func.max(Submission.version).label("version")).where(
-            Submission.task_id == task_id).group_by(Submission.student_id).subquery()
+            Submission.task_id == task_id, submission_access(author.id)).group_by(Submission.student_id).subquery()
     total = db.scalar(select(func.count()).select_from(grouped))
     rows = list(db.execute(select(User, Submission, grouped.c.count).join(
         grouped, grouped.c.student_id == User.id).join(Submission,
         (Submission.student_id == User.id) & (Submission.task_id == task_id) &
         (Submission.version == grouped.c.version)).order_by(
             Submission.submitted_at.desc(), Submission.id.desc()).options(load_only(
-                Submission.id, Submission.version, Submission.summary, Submission.submitted_at)).limit(limit).offset(offset)))
+                Submission.id, Submission.version, Submission.summary, Submission.submitted_at, Submission.reviewer_teacher_id, Submission.is_catalog_submission)).limit(limit).offset(offset)))
     reviews = review_map(db, [row[1].id for row in rows])
     return dict(items=[dict(student=student_data(user), submission_count=count,
         latest_submission=public_submission(submission, reviews.get(submission.id))) for user, submission, count in rows],
@@ -91,10 +109,10 @@ def students(task_id: int, response: Response, limit: int = Query(25, ge=1, le=1
 def history(task_id: int, student_id: int, response: Response,
             author: User = Depends(teacher), db: Session = Depends(get_db)):
     response.headers["Cache-Control"] = "no-store"
-    owned_task(db, task_id, author.id)
+    ensure_submission_task(db, task_id, author.id)
     rows = list(db.scalars(select(Submission).where(Submission.task_id == task_id,
-        Submission.student_id == student_id).options(load_only(Submission.id, Submission.version,
-            Submission.summary, Submission.submitted_at)).order_by(Submission.version.desc())))
+        Submission.student_id == student_id, submission_access(author.id)).options(load_only(Submission.id, Submission.version,
+            Submission.summary, Submission.submitted_at, Submission.reviewer_teacher_id, Submission.is_catalog_submission)).order_by(Submission.version.desc())))
     # Do not expose unrelated accounts through a guessed student ID.
     user = db.get(User, student_id) if rows else None
     reviews = review_map(db, [row.id for row in rows])
@@ -107,7 +125,7 @@ def detail(submission_id: int, response: Response,
            author: User = Depends(teacher), db: Session = Depends(get_db)):
     response.headers["Cache-Control"] = "no-store"
     row = db.scalar(select(Submission).join(Task, Task.id == Submission.task_id).where(
-        Submission.id == submission_id, Task.author_id == author.id))
+        Submission.id == submission_id, submission_access(author.id)))
     if row is None:
         raise HTTPException(404, "Submission not found")
     results = db.scalars(select(SolutionTestResult).where(
@@ -128,3 +146,13 @@ def detail(submission_id: int, response: Response,
         student=student_data(db.get(User, row.student_id)), source_code=row.source_code,
         test_results=snapshots, used_hints=[dict(hint_id=h.hint_id,
             reveal_order=h.reveal_order, revealed_at=h.revealed_at) for h in hints])
+
+
+@router.get("/submissions/tasks/{task_id}/task", response_model=TaskResponse)
+def submission_task(task_id: int, response: Response, author: User = Depends(teacher), db: Session = Depends(get_db)):
+    response.headers["Cache-Control"] = "no-store"
+    grant = db.scalar(select(Submission.id).where(Submission.task_id == task_id, submission_access(author.id)).limit(1))
+    task = db.get(Task, task_id)
+    if task is None or (grant is None and task.author_id != author.id):
+        raise HTTPException(404, "Task not found")
+    return task

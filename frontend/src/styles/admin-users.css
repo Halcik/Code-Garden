@@ -28,6 +28,11 @@
 .admin-brand { display: flex; align-items: center; gap: 8px; padding: 0 8px; font-size: 16px; }
 .admin-brand img { border-radius: 8px; }
 .admin-sidebar nav a { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 8px; background: var(--color-brand-surface); color: var(--color-accent); font-size: 14px; font-weight: 600; text-decoration: none; }
+.admin-sidebar .admin-navigation { display: flex; flex-direction: column; gap: 6px; }
+.admin-sidebar .admin-navigation a { min-height: 40px; padding: 10px 12px; }
+.admin-sidebar .admin-navigation a:not(.active) { background: transparent; color: var(--color-text-secondary); font-weight: 500; }
+.admin-sidebar .admin-navigation a.active { background: var(--color-brand-surface); color: var(--color-catalog-accent); font-weight: 600; }
+.admin-sidebar .admin-navigation .design-icon { color: inherit; }
 .admin-sidebar-footer { margin-top: auto; padding-top: 24px; }
 .admin-identity { display: flex; gap: 8px; align-items: center; padding: 12px; border-radius: 12px; background: var(--color-surface-muted); }
 .admin-identity div { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }

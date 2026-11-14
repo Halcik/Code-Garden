@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { getTask } from "../api/tasks";
 import type { Task } from "../api/tasks";
-import { listSubmissions, submissionHistory, submissionDetail } from "../api/teacherSubmissions";
+import { claimSubmission, listSubmissions, submissionHistory, submissionDetail } from "../api/teacherSubmissions";
 import type { SubmissionList, SubmissionHistory, SubmissionDetail, Version, TestSnapshot } from "../api/teacherSubmissions";
 const PythonCodeEditor = lazy(() => import("../components/PythonCodeEditor"));
 import { useTheme } from "../theme/ThemeProvider";
@@ -63,6 +63,8 @@ export default function TeacherSubmissionsPage() {
   const { taskId = "", studentId } = useParams();
   const fromQueue = useLocation().pathname.startsWith("/teacher/submissions");
   const { theme } = useTheme();
+  const [claiming, setClaiming] = useState(false);
+  const [claimError, setClaimError] = useState("");
   const [task, setTask] = useState<Task | null>(null);
   const [list, setList] = useState<SubmissionList | null>(null);
   const [history, setHistory] = useState<SubmissionHistory | null>(null);
@@ -78,7 +80,7 @@ export default function TeacherSubmissionsPage() {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError(""); setDetail(null); setHistory(null); setSelected(null); setList(null);
-    Promise.all([getTask(taskId, controller.signal), studentId
+    Promise.all([getTask(taskId, controller.signal, true), studentId
       ? submissionHistory(taskId, studentId, controller.signal) : listSubmissions(taskId, offset, controller.signal)])
       .then(([nextTask, data]) => {
         if (controller.signal.aborted) return;
@@ -111,6 +113,7 @@ export default function TeacherSubmissionsPage() {
       {!studentId && <p>Przeglądaj formalnie wysłane rozwiązania uczniów i wyniki testów automatycznych.</p>}
       {detail && <div className="submission-chips"><Score value={detail} /><span className="submission-chip">{date(detail.submitted_at)}</span>
         <span className="submission-chip">Podpowiedzi: {detail.used_hints.length}</span></div>}</div>
+    {claimError && <p role="alert">{claimError}<Link to="/teacher/submissions">Wróć do kolejki</Link></p>}
     {loading ? <p role="status">Ładowanie rozwiązań…</p> : error ? <div role="alert"><p>{error}</p><button className="admin-button" onClick={() => setRetry(n => n + 1)}>Spróbuj ponownie</button></div>
       : !studentId ? <section className="admin-card users-list"><div className="users-list-heading"><h2>{task?.title}</h2><p className="muted">Wyłącznie uczniowie z formalnie wysłanym rozwiązaniem.</p></div>
         {!list?.items.length ? <p className="admin-state" role="status">Żaden uczeń nie wysłał jeszcze rozwiązania tego zadania.</p> : <>
@@ -134,11 +137,16 @@ export default function TeacherSubmissionsPage() {
           <Suspense fallback={<p role="status">Ładowanie edytora kodu…</p>}><PythonCodeEditor value={detail.source_code} onChange={() => {}} readOnly height={340} ariaLabel="Kod rozwiązania ucznia — tylko do odczytu" /></Suspense></section>
           <section className="admin-card submission-panel"><div className="submission-panel-title"><h2>Wyniki testów automatycznych</h2><Score value={detail} /></div>
             {!detail.test_results.length ? <p>Brak zapisanych wyników testów dla tej wersji.</p> : detail.test_results.map(test => <TestResult key={test.number} test={test} />)}</section>
-          <SubmissionReview key={detail.id} submissionId={detail.id} version={detail.version} review={detail.review} onSaved={review => {
+          {detail.reviewer_teacher_id === null ? <section className="admin-card submission-panel"><h2>Przejmij rozwiązanie do recenzji</h2><p>Po przejęciu tylko Ty oceniasz tę pracę i jej kolejne poprawki.</p><button className="admin-button primary" disabled={claiming} onClick={async () => {
+            if (claiming) return; setClaiming(true); setClaimError("");
+            try { await claimSubmission(detail.id); setRetry(n => n + 1); }
+            catch (reason) { setClaimError(reason instanceof Error ? reason.message : "Nie udało się przejąć rozwiązania."); setRetry(n => n + 1); }
+            finally { setClaiming(false); }
+          }}>Przejmij do recenzji</button>{claimError && <p role="alert">{claimError}<Link to="/teacher/submissions">Odśwież kolejkę</Link></p>}</section> : <SubmissionReview key={detail.id} submissionId={detail.id} version={detail.version} review={detail.review} onSaved={review => {
             const id = detail.id;
             setDetail(previous => previous?.id === id ? { ...previous, review } : previous);
             setHistory(previous => previous ? { ...previous, items: previous.items.map(item => item.id === id ? { ...item, review } : item) } : previous);
-          }} />
+          }} />}
           </>}
       </div><aside className="submission-side">
         {detail && <section className="admin-card submission-panel"><h2>Szczegóły rozwiązania</h2><dl className="submission-facts">
@@ -146,7 +154,7 @@ export default function TeacherSubmissionsPage() {
             ["Podpowiedzi", `${detail.used_hints.length} z ${Math.max(detail.total_hints ?? detail.used_hints.length, detail.used_hints.length)}`], ["Weryfikacja", REVIEW_LABELS[detail.review?.status ?? "PENDING"]]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section>}
         <section className="admin-card submission-panel"><h2>Przesłane rozwiązania</h2>{history.items.map(version => <button key={version.id} className="submission-version" aria-pressed={selected === version.id} onClick={() => setSelected(version.id)}>
           <strong>Wersja {version.version}</strong><span>{version.passed_tests} / {version.total_tests} testów · {date(version.submitted_at)}</span><span>{REVIEW_LABELS[version.review?.status ?? "PENDING"]}</span></button>)}</section>
-        {history.student && <TeacherStudentNote key={history.student.id} studentId={history.student.id} />}
+        {history.student && history.items.some(version => version.reviewer_teacher_id !== null) && <TeacherStudentNote key={history.student.id} studentId={history.student.id} />}
       </aside></div>}
   </>;
 }

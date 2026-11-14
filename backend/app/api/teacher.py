@@ -14,7 +14,7 @@ from app.schemas.task import TaskArchiveRequest, TaskCreate, TaskList, TaskRespo
 from app.schemas.task_test import TaskTestWrite, TaskTestPatch, TaskTestResponse, TaskTestReorder
 
 from app.schemas.task_hint import TaskHintWrite, TaskHintPatch, TaskHintResponse, TaskHintReorder
-from app.services.task_catalog import task_filters, task_page
+from app.services.task_catalog import task_filters, task_page, teacher_visible_task_filter, teacher_task_tab_counts
 
 router = APIRouter(prefix="/teacher", tags=["teacher tasks"])
 
@@ -28,8 +28,12 @@ def execution_environments(author: User = Depends(require_role(UserRole.TEACHER)
 @router.get("/tasks", response_model=TaskList)
 def list_tasks(
     response: Response,
+    view: Literal["own", "catalog", "assignable", "all"] = "own",
+    own_only: bool = False,
     archived: bool | None = None,
     assigned: bool | None = None,
+    in_publication: bool = False,
+    in_review: bool = False,
     difficulty: TaskDifficulty | None = None,
     status: TaskStatus | None = None,
     topic: str | None = Query(None, max_length=100),
@@ -43,6 +47,15 @@ def list_tasks(
 ):
     response.headers["Cache-Control"] = "no-store"
     filters = [Task.author_id == author.id]
+    if view == "all":
+        filters = [teacher_visible_task_filter(author.id)]
+    elif view == "catalog":
+        filters = [Task.status == TaskStatus.PUBLISHED, Task.is_archived.is_(False)]
+    elif view == "assignable":
+        from app.services.task_assignments import assignable_task_filters
+        filters = assignable_task_filters(author.id)
+    if own_only:
+        filters.append(Task.author_id == author.id)
     if assigned is not None:
         has_assignment = select(TaskAssignment.id).where(
             TaskAssignment.task_id == Task.id,
@@ -53,7 +66,17 @@ def list_tasks(
     filters.extend(task_filters(search=q, topic=topic, difficulty=difficulty))
     if status is not None:
         filters.append(Task.status == status)
-    return task_page(db, filters, sort_by=sort_by, sort_order=sort_order, limit=limit, offset=offset)
+    if in_publication:
+        filters.extend([Task.is_archived.is_(False), Task.status.in_([
+            TaskStatus.PENDING_TEACHER_REVIEW, TaskStatus.CHANGES_REQUESTED_BY_TEACHER,
+            TaskStatus.PENDING_ADMIN_REVIEW, TaskStatus.CHANGES_REQUESTED_BY_ADMIN])])
+    if in_review:
+        filters.extend([Task.is_archived.is_(False), Task.status.in_([
+            TaskStatus.PENDING_TEACHER_REVIEW, TaskStatus.PENDING_ADMIN_REVIEW])])
+    page = task_page(db, filters, sort_by=sort_by, sort_order=sort_order, limit=limit, offset=offset)
+    page["tab_counts"] = teacher_task_tab_counts(db, author.id,
+        task_filters(search=q, topic=topic, difficulty=difficulty))
+    return page
 
 
 @router.post("/tasks", response_model=TaskResponse, status_code=201, dependencies=[Depends(check_origin)])
@@ -104,6 +127,7 @@ def update_task(
 ):
     response.headers["Cache-Control"] = "no-store"
     task = owned_task(db, task_id, author.id, lock=True)
+    ensure_editable(task)
     if task.is_archived:
         raise HTTPException(status_code=409, detail="Archived tasks are read-only. Restore the task first.")
     status = payload.status if "status" in payload.model_fields_set else task.status
@@ -155,9 +179,16 @@ def set_archived(db: Session, task_id: int, author_id: int, archived: bool, resp
 def task_child_parent(db, task_id, author_id, response, write=False):
     response.headers["Cache-Control"] = "no-store"
     task = owned_task(db, task_id, author_id, lock=write)
+    if write:
+        ensure_editable(task)
     if write and task.is_archived:
         raise HTTPException(409, "Archived tasks are read-only. Restore the task first.")
     return task
+
+
+def ensure_editable(task):
+    if task.status in (TaskStatus.PENDING_TEACHER_REVIEW, TaskStatus.PENDING_ADMIN_REVIEW, TaskStatus.PUBLISHED):
+        raise HTTPException(409, "Task is read-only during review or publication. Withdraw published tasks before editing.")
 
 
 def ordered_tests(db, task_id):

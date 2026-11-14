@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from sqlalchemy import case, delete, func, select, update
+from sqlalchemy import case, delete, func, select, update, or_, and_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -11,13 +11,12 @@ from app.services.groups import owned_group
 
 
 def assignable_task_filters(teacher_id: int):
-    # Until teacher publication/catalogue access is implemented, only authors
-    # may assign tasks. Future own/public visibility belongs in this policy.
-    return [Task.author_id == teacher_id, Task.status == TaskStatus.READY, Task.is_archived.is_(False)]
+    return [or_(and_(Task.author_id == teacher_id, Task.status == TaskStatus.READY),
+                Task.status == TaskStatus.PUBLISHED), Task.is_archived.is_(False)]
 
 
 def available_assignment_task(db: Session, task_id: int, teacher_id: int):
-    task = db.scalar(select(Task).where(Task.id == task_id, *assignable_task_filters(teacher_id)))
+    task = db.scalar(select(Task).where(Task.id == task_id, *assignable_task_filters(teacher_id)).with_for_update())
     if task is None:
         raise HTTPException(404, "Task unavailable for assignment")
     return task

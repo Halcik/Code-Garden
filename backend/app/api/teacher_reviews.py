@@ -11,6 +11,8 @@ from app.models.task import Task
 from app.models.user import User, UserRole
 from app.schemas.review import ReviewWrite, ReviewResponse, NoteWrite, NoteResponse
 from app.services.reviews import public_review
+from app.services.submission_access import accessible_submission, claim_submission
+from app.models.solution import SolutionDraft
 
 router = APIRouter(prefix="/teacher", tags=["teacher review"])
 teacher = require_role(UserRole.TEACHER)
@@ -20,10 +22,14 @@ teacher = require_role(UserRole.TEACHER)
 def save_review(submission_id: int, payload: ReviewWrite, response: Response,
                 author: User = Depends(teacher), db: Session = Depends(get_db)):
     response.headers["Cache-Control"] = "no-store"
-    row = db.scalar(select(Submission.id).join(Task, Task.id == Submission.task_id).where(
-        Submission.id == submission_id, Task.author_id == author.id))
-    if row is None:
-        raise HTTPException(404, "Submission not found")
+    submission = accessible_submission(db, submission_id, author.id)
+    # Serialize decisions with claims/new versions using the same work context.
+    db.scalar(select(SolutionDraft).where(SolutionDraft.student_id == submission.student_id,
+        SolutionDraft.task_id == submission.task_id).with_for_update())
+    db.refresh(submission)
+    if submission.reviewer_teacher_id != author.id:
+        raise HTTPException(409, "Claim this submission before reviewing it")
+    row = submission.id
     now = datetime.now(timezone.utc)
     values = dict(decision=payload.decision, feedback=payload.feedback, reviewed_by=author.id,
                   reviewed_at=now, updated_at=now)
@@ -35,12 +41,18 @@ def save_review(submission_id: int, payload: ReviewWrite, response: Response,
 
 
 def accessible_student(db, teacher_id, student_id):
-    # Existing policy: a teacher may work with pupils who submitted to their tasks.
+    # Private notes are available only after this teacher owns a review context.
     found = db.scalar(select(Submission.id).join(Task, Task.id == Submission.task_id).join(
-        User, User.id == Submission.student_id).where(Task.author_id == teacher_id,
+        User, User.id == Submission.student_id).where(Submission.reviewer_teacher_id == teacher_id,
         Submission.student_id == student_id, User.role == UserRole.STUDENT).limit(1))
     if found is None:
         raise HTTPException(404, "Student not found")
+
+
+@router.post("/submissions/{submission_id}/claim", dependencies=[Depends(check_origin)])
+def claim(submission_id: int, response: Response, author: User = Depends(teacher), db: Session = Depends(get_db)):
+    response.headers["Cache-Control"] = "no-store"
+    return claim_submission(db, submission_id, author.id)
 
 
 @router.get("/students/{student_id}/note", response_model=NoteResponse)

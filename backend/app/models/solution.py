@@ -1,6 +1,6 @@
 """Current work and immutable formal snapshots (KAN-37)."""
 from datetime import datetime
-from sqlalchemy import DateTime, ForeignKey, Integer, Text, String, UniqueConstraint, CheckConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Text, String, UniqueConstraint, CheckConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
@@ -16,6 +16,7 @@ class SolutionDraft(Base):
     revision: Mapped[int] = mapped_column(default=0, server_default="0")
     check_count: Mapped[int] = mapped_column(default=0, server_default="0")
     next_version: Mapped[int] = mapped_column(default=1, server_default="1")
+    reviewer_teacher_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True)
     checked_hash: Mapped[str | None] = mapped_column(String(64))
     checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     check_summary: Mapped[dict | None] = mapped_column(JSONB)
@@ -40,6 +41,8 @@ class Submission(Base):
     student_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True)
     task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="RESTRICT"), index=True)
     version: Mapped[int] = mapped_column(Integer)
+    reviewer_teacher_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True)
+    is_catalog_submission: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     source_code: Mapped[str] = mapped_column(Text)
     summary: Mapped[dict] = mapped_column(JSONB)
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

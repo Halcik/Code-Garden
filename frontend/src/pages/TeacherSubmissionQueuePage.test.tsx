@@ -19,6 +19,31 @@ beforeEach(() => {
     offset: Number(new URL(path, "http://local").searchParams.get("offset") || 0), tasks: [row.task] }));
 });
 afterEach(cleanup);
+
+it("shows review totals across tabs and hides zero counts", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => Response.json({
+    items: [row], total: path.includes("review_status=ACCEPTED") ? 20 : 7, limit: 25, offset: 0, tasks: [row.task],
+    review_counts: { ALL: 27, PENDING: 7, ACCEPTED: 20, CHANGES_REQUESTED: 0 },
+  }));
+  mount(); await screen.findByText("Anna");
+  const tabs = screen.getByRole("group", { name: "Kolejki prac uczniów" });
+  expect(screen.getByRole("button", { name: "Do przejrzenia 7" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Wszystkie 27" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Do poprawy" }).querySelector(".teacher-tab-count")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Zaakceptowane 20" }));
+  expect(await screen.findByRole("button", { name: "Do przejrzenia 7" })).toBeTruthy();
+  expect(tabs.querySelectorAll(".teacher-tab-count")).toHaveLength(3);
+});
+
+it("switches between unclaimed work and my reviews using server filters", async () => {
+  mount(); await screen.findByText("Anna");
+  expect(screen.queryByRole("group", { name: "Opiekun recenzji" })).toBeNull();
+  expect(screen.getByRole("group", { name: "Kolejki prac uczniów" })).toBeTruthy();
+  fireEvent.change(screen.getByLabelText("Opiekun recenzji"), { target: { value: "available" } });
+  await waitFor(() => expect(vi.mocked(apiFetch).mock.lastCall?.[0]).toContain("scope=available"));
+  fireEvent.change(screen.getByLabelText("Opiekun recenzji"), { target: { value: "mine" } });
+  await waitFor(() => expect(vi.mocked(apiFetch).mock.lastCall?.[0]).toContain("scope=mine"));
+});
 function mount() {
   render(<MemoryRouter initialEntries={["/teacher/submissions"]}><Routes><Route path="/teacher" element={<TeacherLayout />}>
     <Route path="submissions" element={<TeacherSubmissionQueuePage />} />

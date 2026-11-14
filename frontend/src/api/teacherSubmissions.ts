@@ -1,7 +1,7 @@
 import { apiFetch } from "./client";
 import type { Review, ReviewStatus } from "./reviews";
 
-export type Version = { id: number; version: number; submitted_at: string; passed_tests: number;
+export type Version = { reviewer_teacher_id?: number | null; is_catalog_submission?: boolean; id: number; version: number; submitted_at: string; passed_tests: number;
   failed_tests: number; total_tests: number; all_passed: boolean; review?: Review };
 export type SubmissionStudent = { id: number; login: string; status: string };
 export type SubmissionList = { items: { student: SubmissionStudent; submission_count: number;
@@ -29,10 +29,18 @@ export const submissionHistory = (task: string, student: string, signal: AbortSi
 export const submissionDetail = (id: number, signal: AbortSignal) => read<SubmissionDetail>(`submissions/${id}`, signal);
 
 export type SubmissionQueue = Omit<SubmissionList, "items"> & { tasks: { id: number; title: string; topic: string }[];
+  review_counts?: Record<"ALL" | "PENDING" | "ACCEPTED" | "CHANGES_REQUESTED", number>;
   items: (SubmissionList["items"][number] & { task: { id: number; title: string; topic: string }; used_hint_count: number })[] };
-export function submissionQueue(filters: { q: string; task: string; sort: string; offset: number; review_status?: ReviewStatus | "" }, signal: AbortSignal) {
+export function submissionQueue(filters: { q: string; task: string; sort: string; offset: number; scope?: string; review_status?: ReviewStatus | "" }, signal: AbortSignal) {
   const params = new URLSearchParams({ q: filters.q, sort: filters.sort, offset: String(filters.offset) });
+  if (filters.scope) params.set("scope", filters.scope);
   if (filters.task) params.set("task_id", filters.task);
   if (filters.review_status) params.set("review_status", filters.review_status);
   return read<SubmissionQueue>(`submissions?${params}`, signal);
+}
+
+export async function claimSubmission(id: number) {
+  const response = await apiFetch(`/teacher/submissions/${id}/claim`, { method: "POST" });
+  if (!response.ok) throw new Error(response.status === 409 ? "Rozwiązanie zostało już przejęte. Odśwież kolejkę." : "Nie udało się przejąć rozwiązania.");
+  return response.json();
 }

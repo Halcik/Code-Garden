@@ -5,7 +5,8 @@ from app.models.task import Task, TaskTest, TaskHint
 from app.models.task_assignment import TaskAssignment
 
 __all__ = ["TaskAssignment", "User", "StudentGroup", "group_students", "GroupInvitation", "GroupInvitationCode", "Task", "TaskTest", "TaskHint", "SolutionDraft", "DraftUsedHint",
-           "Submission", "SubmissionUsedHint", "SolutionTestResult", "SubmissionReview", "TeacherStudentNote"]
+           "Submission", "SubmissionUsedHint", "SolutionTestResult", "SubmissionReview", "TeacherStudentNote", "PublicationReview"]
 
 from app.models.solution import SolutionDraft, DraftUsedHint, Submission, SubmissionUsedHint, SolutionTestResult
 from app.models.review import SubmissionReview, TeacherStudentNote
+from app.models.publication import PublicationReview

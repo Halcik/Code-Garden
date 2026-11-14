@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
+from app.api.publication import router as publication_router
 from app.api.admin import router as admin_router
 from app.api.teacher import router as teacher_router
 from app.api.student import router as student_router
@@ -18,6 +19,7 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins,
                    allow_credentials=True, allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
                    allow_headers=["Content-Type"])
 app.include_router(auth_router)
+app.include_router(publication_router)
 app.include_router(admin_router)
 app.include_router(teacher_router)
 app.include_router(teacher_groups_router)

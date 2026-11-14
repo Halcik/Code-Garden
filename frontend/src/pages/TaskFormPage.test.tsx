@@ -31,6 +31,51 @@ function fill() {
 beforeEach(() => { theme.value = "light"; vi.resetAllMocks(); vi.mocked(apiFetch).mockImplementation(async () => Response.json(task)); });
 afterEach(cleanup);
 
+it.each(["PENDING_TEACHER_REVIEW", "PENDING_ADMIN_REVIEW", "PUBLISHED"])("locks published or pending content for %s", async status => {
+  vi.mocked(apiFetch).mockImplementation(async path => Response.json(path.startsWith("/publication/")
+    ? { history: [{ id: 1, stage: "TEACHER", decision: "CHANGES_REQUESTED", reviewer_login: "reviewer", publication_round: 1, comment: "Popraw opis", created_at: "2026-11-13T10:00:00Z" }] }
+    : { ...task, status, publication_round: 1 }));
+  open(true); await screen.findByLabelText("Tytuł");
+  expect(screen.getByLabelText("Tytuł").closest("fieldset")?.disabled).toBe(true);
+  expect((screen.getByRole("button", { name: "Zapisz zmiany" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(await screen.findByText("Popraw opis")).toBeTruthy();
+  const history = screen.getByRole("region", { name: "Historia recenzji zadania" });
+  expect(history.closest("aside")?.getAttribute("aria-label")).toBe("Ustawienia zadania");
+  expect(screen.queryByRole("heading", { name: "Proces publikacji" })).toBeNull();
+  if (status === "PUBLISHED") expect(screen.getByRole("button", { name: "Wycofaj do edycji" })).toBeTruthy();
+});
+
+it("submits saved READY content and prevents publishing unsaved changes", async () => {
+  vi.mocked(apiFetch).mockResolvedValue(Response.json({ ...task, status: "READY", instructions: "Polecenie" }));
+  open(true); await screen.findByLabelText("Tytuł");
+  expect(screen.getByRole("button", { name: "Zgłoś do publikacji" }).closest("section")?.getAttribute("aria-label")).toBe("Publikacja");
+  expect(screen.getByRole("button", { name: "Zgłoś do publikacji" }).closest("aside")?.getAttribute("aria-label")).toBe("Ustawienia zadania");
+  fireEvent.change(screen.getByLabelText("Tytuł"), { target: { value: "Nowa treść" } });
+  expect((screen.getByRole("button", { name: "Zgłoś do publikacji" }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.change(screen.getByLabelText("Tytuł"), { target: { value: task.title } });
+  vi.mocked(apiFetch).mockImplementation(async (path, options) => Response.json(path.startsWith("/publication/") ? { history: [] } : { ...task, status: options?.method === "POST" ? "PENDING_TEACHER_REVIEW" : "READY" }));
+  fireEvent.click(screen.getByRole("button", { name: "Zgłoś do publikacji" }));
+  await waitFor(() => expect(vi.mocked(apiFetch).mock.calls.some(([url, options]) => url === "/teacher/tasks/7/publication" && options?.method === "POST")).toBe(true));
+});
+
+it("withdraws publication from the right panel and makes the task editable again", async () => {
+  let published = true;
+  vi.mocked(apiFetch).mockImplementation(async (path, options) => {
+    if (path.endsWith("/withdraw-publication") && options?.method === "POST") published = false;
+    return Response.json(path.startsWith("/publication/") ? { history: [] } : {
+      ...task, status: published ? "PUBLISHED" : "READY", instructions: "Polecenie", publication_round: 1,
+    });
+  });
+  open(true);
+  const button = await screen.findByRole("button", { name: "Wycofaj do edycji" });
+  expect(button.closest("section")?.getAttribute("aria-label")).toBe("Publikacja");
+  expect(button.closest("aside")?.getAttribute("aria-label")).toBe("Ustawienia zadania");
+  fireEvent.click(button);
+  await screen.findByRole("button", { name: "Zgłoś do publikacji" });
+  expect(screen.getByLabelText("Tytuł").closest("fieldset")?.disabled).toBe(false);
+  expect(screen.getByRole("region", { name: "Historia recenzji zadania" }).closest("aside")).toBeTruthy();
+});
+
 it("opens assignments in a centred dialog from the header and restores focus when closing", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => Response.json(path.includes("/assignments") || path === "/teacher/groups" ? [] : task));
   open(true);

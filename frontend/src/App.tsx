@@ -1,3 +1,4 @@
+import PublicationReviewsPage from "./pages/PublicationReviewsPage";
 import AuthPage from "./pages/AuthPage";
 import { AuthProvider } from "./auth/AuthProvider";
 import { ThemeProvider } from "./theme/ThemeProvider";
@@ -43,6 +44,9 @@ export default function App() {
                 <Route path="groups/:groupId" element={<TeacherGroupsPage />} />
                 <Route path="submissions" element={<TeacherSubmissionQueuePage />} />
                 <Route path="submissions/tasks/:taskId/students/:studentId" element={<TeacherSubmissionsPage />} />
+                <Route path="reviews" element={<PublicationReviewsPage />} />
+                <Route path="reviews/:taskId" element={<PublicationReviewsPage />} />
+                <Route path="catalog/:taskId" element={<PublicationReviewsPage />} />
                 <Route path="tasks/new" element={<TaskFormPage key="new" />} />
                 <Route path="tasks/:taskId/edit" element={<TaskFormPage key="edit" />} />
                 <Route path="tasks/:taskId/submissions" element={<TeacherSubmissionsPage />} />
@@ -51,6 +55,8 @@ export default function App() {
             </Route>
             <Route element={<ProtectedRoute role="ADMIN" />}>
               <Route path="/admin" element={<AdminUsersPage />} />
+              <Route path="/admin/reviews" element={<PublicationReviewsPage admin />} />
+              <Route path="/admin/reviews/:taskId" element={<PublicationReviewsPage admin />} />
             </Route>
           </Routes>
         </BrowserRouter>

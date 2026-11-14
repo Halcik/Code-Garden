@@ -5,7 +5,7 @@ import { apiFetch } from "../api/client";
 import type { Task } from "../api/tasks";
 import TeacherTasksPage from "./TeacherTasksPage";
 
-const auth = vi.hoisted(() => ({ retrySession: vi.fn() }));
+const auth = vi.hoisted(() => ({ user: { id: 1 }, retrySession: vi.fn() }));
 vi.mock("../auth/AuthProvider", () => ({ useAuth: () => auth }));
 vi.mock("../api/client", () => ({ apiFetch: vi.fn() }));
 
@@ -37,6 +37,89 @@ beforeEach(() => {
   vi.mocked(apiFetch).mockImplementation(async path => response(path));
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
+
+it("shows positive server totals on every task tab and omits zero counts", async () => {
+  const counts = { ALL: 125, OWN: 40, ASSIGNED: 0, DRAFT: 2, PUBLIC: 90, IN_REVIEW: 3, ARCHIVED: 0 };
+  vi.mocked(apiFetch).mockImplementation(async path => Response.json({
+    items: [task], total: params(path).get("own_only") === "true" ? 40 : 125,
+    limit: Number(params(path).get("limit")), offset: 0, tab_counts: counts,
+  }));
+  renderPage(); await screen.findByRole("table");
+  const tabs = within(screen.getByRole("group", { name: "Status zadań" }));
+  for (const name of ["Wszystkie 125", "Moje zadania 40", "Wersje robocze 2", "Publiczne 90", "W recenzji 3"])
+    expect(tabs.getByRole("button", { name })).toBeTruthy();
+  expect(tabs.getByRole("button", { name: "Przypisane" }).querySelector(".teacher-tab-count")).toBeNull();
+  expect(tabs.getByRole("button", { name: "Zarchiwizowane" }).querySelector(".teacher-tab-count")).toBeNull();
+  fireEvent.click(tabs.getByRole("button", { name: "Moje zadania 40" }));
+  expect(await tabs.findByRole("button", { name: "Wszystkie 125" })).toBeTruthy();
+  expect(tabs.getByRole("button", { name: "Publiczne 90" })).toBeTruthy();
+});
+
+it("filters my tasks awaiting either publication review without navigating to other teachers' tasks", async () => {
+  renderPage(); await screen.findByRole("table");
+  expect(screen.queryByRole("link", { name: "Do recenzji" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "W recenzji" }));
+  await waitFor(() => expect(listRequests().at(-1)?.get("in_review")).toBe("true"));
+  expect(listRequests().at(-1)?.get("view")).toBe("all");
+  expect(listRequests().at(-1)?.get("own_only")).toBe("true");
+  expect(screen.getByLabelText("Adres").textContent).toBe("/teacher/tasks");
+  expect(screen.getByRole("button", { name: "W recenzji" }).getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(screen.getByRole("button", { name: "Wszystkie" }));
+  await waitFor(() => expect(listRequests().at(-1)?.get("in_review")).toBeNull());
+});
+
+it("submits an own ready task for publication", async () => {
+  vi.mocked(apiFetch).mockImplementation(async (path, options) => options?.method === "POST"
+    ? Response.json({ ...task, status: "PENDING_TEACHER_REVIEW" }) : response(path, 1, [{ ...task, status: "READY" }]));
+  renderPage(); await screen.findByRole("table");
+  fireEvent.click(screen.getByRole("button", { name: `Więcej akcji: ${task.title}` }));
+  fireEvent.click(screen.getByRole("button", { name: "Zgłoś do publikacji" }));
+  expect(await screen.findByText("Zadanie zgłoszono do publikacji.")).toBeTruthy();
+  expect(vi.mocked(apiFetch).mock.calls.some(([url, options]) => url === "/teacher/tasks/7/publication" && options?.method === "POST")).toBe(true);
+});
+
+it.each(["PENDING_TEACHER_REVIEW", "CHANGES_REQUESTED_BY_TEACHER", "PENDING_ADMIN_REVIEW", "CHANGES_REQUESTED_BY_ADMIN", "PUBLISHED"] as const)("shows the publication status %s", async status => {
+  vi.mocked(apiFetch).mockImplementation(async path => response(path, 1, [{ ...task, status }]));
+  renderPage(); await screen.findByRole("table");
+  const { STATUSES } = await import("../api/tasks");
+  expect(screen.getAllByText(STATUSES[status]).length).toBeGreaterThan(0);
+});
+
+it("loads the public catalogue from the backend and allows assigning published tasks", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => response(path, 1, [{ ...task, status: "PUBLISHED", author_id: 99 }]));
+  renderPage(); await screen.findByRole("table"); fireEvent.click(screen.getByRole("button", { name: "Publiczne" }));
+  await waitFor(() => expect(listRequests().at(-1)?.get("view")).toBe("catalog"));
+  expect((screen.getByRole("button", { name: `Przypisz zadanie: ${task.title}` }) as HTMLButtonElement).disabled).toBe(false);
+  expect(screen.queryByRole("button", { name: `Więcej akcji: ${task.title}` })).toBeNull();
+});
+
+it("combines my tasks and public tasks, counts both and filters by ownership", async () => {
+  const publicTask: Task = { ...task, id: 8, title: "Publiczne zadanie innego nauczyciela", author_id: 99, status: "PUBLISHED" };
+  vi.mocked(apiFetch).mockImplementation(async path => {
+    const query = params(path);
+    const onlyMine = query.get("own_only") === "true" || query.get("view") === "own";
+    return response(path, onlyMine ? 1 : 2, onlyMine ? [task] : [task, publicTask]);
+  });
+  renderPage(); await screen.findByRole("table");
+  expect(listRequests().at(-1)?.get("view")).toBe("all");
+  const publicLink = screen.getByRole("link", { name: publicTask.title });
+  expect(publicLink.getAttribute("href")).toBe("/teacher/catalog/8");
+  expect(screen.getByRole("link", { name: task.title }).getAttribute("href")).toBe("/teacher/tasks/7/edit");
+  expect(screen.queryByRole("button", { name: `Więcej akcji: ${publicTask.title}` })).toBeNull();
+  const metric = within(screen.getByRole("region", { name: "Statystyki zadań" })).getByRole("heading", { name: "Wszystkie zadania" }).closest("article")!;
+  expect(await within(metric).findByText("2")).toBeTruthy();
+  expect(await within(metric).findByText("W tym moje: 1")).toBeTruthy();
+  expect(screen.queryByLabelText("Autor")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Moje zadania" }));
+  await waitFor(() => expect(listRequests().at(-1)?.get("own_only")).toBe("true"));
+  await waitFor(() => expect(screen.queryByRole("link", { name: publicTask.title })).toBeNull());
+  expect(within(metric).getByText("2")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Moje zadania" }).getAttribute("aria-pressed")).toBe("true");
+  expect(screen.getByRole("button", { name: "Wszystkie" }).getAttribute("aria-pressed")).toBe("false");
+  fireEvent.click(screen.getByRole("button", { name: "Wszystkie" }));
+  expect(await screen.findByRole("link", { name: publicTask.title })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Moje zadania" }).getAttribute("aria-pressed")).toBe("false");
+});
 
 it("opens assignments from the new column between update and usage", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => path === "/teacher/groups" || path.endsWith("/assignments") || path.startsWith("/teacher/assignment-students")
@@ -121,7 +204,7 @@ it("shows the empty state for a teacher without tasks and zero counters", async 
   expect(await screen.findByText("Nie masz jeszcze żadnych zadań")).toBeTruthy();
   expect(screen.queryByRole("table")).toBeNull();
   expect(screen.getByRole("link", { name: "Utwórz zadanie" })).toBeTruthy();
-  await waitFor(() => expect(screen.getAllByText("0")).toHaveLength(3));
+  await waitFor(() => expect(screen.getAllByText("0")).toHaveLength(4));
 });
 
 it("distinguishes no matching results and lets the teacher clear filters", async () => {
@@ -223,7 +306,7 @@ it.each([
 it("keeps total and draft counters unchanged when filtering the list", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => {
     const query = params(path);
-    return response(path, query.get("assigned") === "true" ? 3 : query.get("limit") === "1" ? query.get("status") === "DRAFT" ? 8 : 51 : 1);
+    return response(path, query.get("in_publication") === "true" ? 2 : query.get("assigned") === "true" ? 3 : query.get("limit") === "1" ? query.get("status") === "DRAFT" ? 8 : 51 : 1);
   });
   renderPage();
   await screen.findByRole("table");
@@ -236,7 +319,7 @@ it("keeps total and draft counters unchanged when filtering the list", async () 
   await screen.findByRole("table");
   expect(within(metrics).getByText("51")).toBeTruthy();
   expect(within(metrics).getByText("8")).toBeTruthy();
-  expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => params(path).get("limit") === "1")).toHaveLength(4);
+  expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => params(path).get("limit") === "1")).toHaveLength(5);
 });
 
 it("archives from the row menu and refreshes the list and metrics", async () => {
@@ -255,7 +338,7 @@ it("archives from the row menu and refreshes the list and metrics", async () => 
   expect(screen.queryByRole("link", { name: `Otwórz zadanie: ${task.title}` })).toBeNull();
   expect(apiFetch).toHaveBeenCalledWith("/teacher/tasks/7/archive", expect.objectContaining({ method: "PATCH" }));
   expect(screen.getByRole("button", { name: "Wszystkie" }).getAttribute("aria-pressed")).toBe("true");
-  await screen.findByText("0 aktywnych · 1 zarchiwizowanych");
+  await screen.findByText("W tym moje: 1");
 });
 
 it("filters archives, restores and removes the row from archives, then shows it in all tasks", async () => {
@@ -317,5 +400,5 @@ it("keeps the draft metric and tab consistent when a draft is archived", async (
   fireEvent.click(screen.getByRole("button", { name: "Wszystkie" }));
   await screen.findByRole("table");
   expect(screen.getByText("Tylko do odczytu")).toBeTruthy();
-  await screen.findByText("0 aktywnych · 1 zarchiwizowanych");
+  await screen.findByText("W tym moje: 1");
 });

@@ -89,6 +89,7 @@ def public_check(db, draft):
 
 def public_submission(row, review=None):
     return dict(id=row.id, version=row.version, submitted_at=row.submitted_at,
+                reviewer_teacher_id=row.reviewer_teacher_id, is_catalog_submission=row.is_catalog_submission,
                 review=public_review(review),
                 **{key: value for key, value in row.summary.items() if key != "total_hints"})
 

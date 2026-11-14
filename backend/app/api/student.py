@@ -30,12 +30,12 @@ router = APIRouter(prefix="/student", tags=["student tasks"],
 
 
 def visible_student_tasks(student_id: int | None = None):
-    filters = [Task.status == TaskStatus.READY, Task.is_archived.is_(False)]
+    filters = [Task.status == TaskStatus.PUBLISHED, Task.is_archived.is_(False)]
     if student_id is None:
         return filters
     assigned = select(TaskAssignment.id).where(
         TaskAssignment.task_id == Task.id, TaskAssignment.student_id == student_id).exists()
-    return [*filters, assigned]
+    return [Task.is_archived.is_(False), Task.status != TaskStatus.DRAFT, assigned]
 
 
 @router.get("/tasks", response_model=StudentTaskList)
@@ -71,9 +71,12 @@ def get_student_task(task_id: int, response: Response, db: Session = Depends(get
 
 def available_student_task(db: Session, task_id: int, response: Response, student_id: int):
     response.headers["Cache-Control"] = "no-store"
-    # Ready catalogue tasks may be practised without a teacher assignment.
+    # Published catalogue tasks may be practised without a teacher assignment.
     # Drafts, submissions and revealed hints remain scoped to the current user.
-    task = db.scalar(select(Task).where(Task.id == task_id, *visible_student_tasks()))
+    assigned = select(TaskAssignment.id).where(TaskAssignment.task_id == Task.id,
+        TaskAssignment.student_id == student_id).exists()
+    task = db.scalar(select(Task).where(Task.id == task_id, Task.is_archived.is_(False),
+        Task.status != TaskStatus.DRAFT, (Task.status == TaskStatus.PUBLISHED) | assigned))
     if task is None:
         raise HTTPException(404, "Task not found", headers={"Cache-Control": "no-store"})
     return task
@@ -224,7 +227,12 @@ async def submit_solution(task_id: int, payload: SubmitRequest, response: Respon
         raise HTTPException(exc.status_code, exc.message, headers={"Cache-Control": "no-store"}) from None
     try:
         draft = solutions.locked_draft(db, draft_id)
+        # Recheck availability after remote execution, before storing a snapshot.
+        available_student_task(db, task_id, response, student_id)
+        assigned = db.scalar(select(TaskAssignment.id).where(TaskAssignment.student_id == student_id,
+            TaskAssignment.task_id == task_id).limit(1)) is not None
         submission = Submission(student_id=student_id, task_id=task_id, version=draft.next_version,
+                                reviewer_teacher_id=draft.reviewer_teacher_id, is_catalog_submission=not assigned,
                                 source_code=source, summary={**solutions.summary(result), "total_hints": total_hints})
         draft.next_version += 1
         draft.check_count += 1

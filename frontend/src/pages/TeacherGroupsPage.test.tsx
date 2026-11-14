@@ -71,7 +71,7 @@ it.each(["/teacher/groups", "/teacher/groups/7"])("assigns a task through the gr
   expect(dialog.getByText(/Liczba uczniów: 12/)).toBeTruthy();
   await dialog.findByRole("radio", { name: "Pętle" });
   const request = vi.mocked(apiFetch).mock.calls.find(([url]) => url.startsWith("/teacher/tasks?"))![0];
-  expect(new URL(request, "http://localhost").searchParams.get("status")).toBe("READY");
+  expect(new URL(request, "http://localhost").searchParams.get("view")).toBe("assignable");
   expect(new URL(request, "http://localhost").searchParams.get("archived")).toBe("false");
   fireEvent.click(dialog.getByRole("radio", { name: "Pętle" }));
   fireEvent.click(dialog.getByRole("button", { name: "Przypisz grupie" }));
